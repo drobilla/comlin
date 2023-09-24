@@ -51,7 +51,6 @@ elif cc.get_id() == 'gcc'
     c_suppressions += [
       '-Wno-conversion',
       '-Wno-discarded-qualifiers',
-      '-Wno-format',
       '-Wno-padded',
       '-Wno-strict-overflow',
       '-Wno-suggest-attribute=pure',
