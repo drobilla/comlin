@@ -220,7 +220,7 @@ a function to deallocate the hint string once used:
     void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *);
 
 The free hint callback will just receive the pointer and free the string
-as needed (depending on how the hits callback allocated it).
+as needed (depending on how the hints callback allocated it).
 
 As you can see in the example above, a `color` (in xterm color terminal codes)
 can be provided together with a `bold` attribute. If no color is set, the
