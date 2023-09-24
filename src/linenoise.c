@@ -368,7 +368,7 @@ static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseComple
  * the input was consumed by the completeLine() function to navigate the
  * possible completions, and the caller should read for the next characters
  * from stdin. */
-static int completeLine(struct linenoiseState *ls, int keypressed) {
+static char completeLine(struct linenoiseState *ls, char keypressed) {
     linenoiseCompletions lc = { 0, NULL };
     int nwritten;
     char c = keypressed;
@@ -953,7 +953,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         break;
     case CTRL_T:    /* ctrl-t, swaps current character with previous. */
         if (l->pos > 0 && l->pos < l->len) {
-            int aux = l->buf[l->pos-1];
+            const char aux = l->buf[l->pos-1];
             l->buf[l->pos-1] = l->buf[l->pos];
             l->buf[l->pos] = aux;
             if (l->pos != l->len-1) l->pos++;
@@ -1146,7 +1146,7 @@ static char *linenoiseNoTTY(void) {
                 return line;
             }
         } else {
-            line[len] = c;
+            line[len] = (char)c;
             len++;
         }
     }

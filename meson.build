@@ -35,7 +35,6 @@ if cc.get_id() == 'clang'
   if warning_level == 'everything'
     c_suppressions += [
       '-Wno-declaration-after-statement',
-      '-Wno-implicit-int-conversion',
       '-Wno-padded',
       '-Wno-shorten-64-to-32',
       '-Wno-sign-conversion',
@@ -45,12 +44,6 @@ if cc.get_id() == 'clang'
     if not meson.is_cross_build()
       c_suppressions += ['-Wno-poison-system-directories']
     endif
-  endif
-
-  if warning_level in ['everything', '3', '2']
-    c_suppressions += [
-      '-Wno-int-conversion',
-    ]
   endif
 
 elif cc.get_id() == 'gcc'
