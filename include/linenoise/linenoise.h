@@ -17,9 +17,11 @@ extern char *linenoiseEditMore;
  * We pass this state to functions implementing specific editing
  * functionalities. */
 struct linenoiseState {
-    int in_completion;  /* The user pressed TAB and we are now in completion
-                         * mode, so input is handled by completeLine(). */
+    int in_completion; /* The user pressed TAB and we are now in completion
+                        * mode, so input is handled by completeLine(). */
+
     size_t completion_idx; /* Index of next completion to propose. */
+
     int ifd;            /* Terminal stdin file descriptor. */
     int ofd;            /* Terminal stdout file descriptor. */
     char *buf;          /* Edited line buffer. */
@@ -40,7 +42,12 @@ typedef struct linenoiseCompletions {
 } linenoiseCompletions;
 
 /* Non blocking API. */
-int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt);
+int linenoiseEditStart(struct linenoiseState *l,
+                       int stdin_fd,
+                       int stdout_fd,
+                       char *buf,
+                       size_t buflen,
+                       const char *prompt);
 char *linenoiseEditFeed(struct linenoiseState *l);
 void linenoiseEditStop(struct linenoiseState *l);
 void linenoiseHide(struct linenoiseState *l);
@@ -52,7 +59,7 @@ void linenoiseFree(void *ptr);
 
 /* Completion API. */
 typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
-typedef char*(linenoiseHintsCallback)(const char *, int *color, int *bold);
+typedef char *(linenoiseHintsCallback)(const char *, int *color, int *bold);
 typedef void(linenoiseFreeHintsCallback)(void *);
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn);
 void linenoiseSetHintsCallback(linenoiseHintsCallback *fn);
