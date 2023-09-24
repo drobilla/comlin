@@ -134,20 +134,14 @@ static void refreshLine(struct linenoiseState *l);
 
 /* ======================= Low level terminal handling ====================== */
 
-/* Enable "mask mode". When it is enabled, instead of the input that
- * the user is typing, the terminal will just display a corresponding
- * number of asterisks, like "****". This is useful for passwords and other
- * secrets that should not be displayed. */
 void linenoiseMaskModeEnable(void) {
     maskmode = 1;
 }
 
-// Disable mask mode
 void linenoiseMaskModeDisable(void) {
     maskmode = 0;
 }
 
-// Set if to use or not the multi line mode
 void linenoiseSetMultiLine(int ml) {
     mlmode = ml;
 }
@@ -299,7 +293,6 @@ failed:
     return 80;
 }
 
-// Clear the screen (for handling ctrl+l)
 void linenoiseClearScreen(void) {
     if (write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7) <= 0) {
         // Nothing to do, just to avoid warning
@@ -427,27 +420,18 @@ static char completeLine(struct linenoiseState *ls, char keypressed) {
     return c; // Return last read character
 }
 
-// Register a callback function to be called for tab-completion
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
     completionCallback = fn;
 }
 
-/* Register a hints function to be called to show hints to the user at the
- * right of the prompt. */
 void linenoiseSetHintsCallback(linenoiseHintsCallback *fn) {
     hintsCallback = fn;
 }
 
-/* Register a function to free the hints returned by the hints callback
- * registered with linenoiseSetHintsCallback(). */
 void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *fn) {
     freeHintsCallback = fn;
 }
 
-/* This function is used by the callback function registered by the user
- * in order to add completion options given the input string when the
- * user typed <tab>. See the example.c source code for a very easy to
- * understand example. */
 void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
     size_t len = strlen(str);
 
@@ -704,7 +688,6 @@ static void refreshLine(struct linenoiseState *l) {
     refreshLineWithFlags(l, REFRESH_ALL);
 }
 
-// Hide the current line, when using the multiplexing API
 void linenoiseHide(struct linenoiseState *l) {
     if (mlmode) {
         refreshMultiLine(l, REFRESH_CLEAN);
@@ -713,7 +696,6 @@ void linenoiseHide(struct linenoiseState *l) {
     }
 }
 
-// Show the current line, when using the multiplexing API
 void linenoiseShow(struct linenoiseState *l) {
     if (l->in_completion) {
         refreshLineWithCompletion(l, NULL, REFRESH_WRITE);
@@ -852,30 +834,6 @@ static void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     refreshLine(l);
 }
 
-/* This function is part of the multiplexed API of Linenoise, that is used
- * in order to implement the blocking variant of the API but can also be
- * called by the user directly in an event driven program. It will:
- *
- * 1. Initialize the linenoise state passed by the user.
- * 2. Put the terminal in RAW mode.
- * 3. Show the prompt.
- * 4. Return control to the user, that will have to call linenoiseEditFeed()
- *    each time there is some data arriving in the standard input.
- *
- * The user can also call linenoiseEditHide() and linenoiseEditShow() if it
- * is required to show some input arriving asynchronously, without mixing
- * it with the currently edited line.
- *
- * When linenoiseEditFeed() returns non-NULL, the user finished with the
- * line editing session (pressed enter CTRL-D/C): in this case the caller
- * needs to call linenoiseEditStop() to put back the terminal in normal
- * mode. This will not destroy the buffer, as long as the linenoiseState
- * is still valid in the context of the caller.
- *
- * The function returns 0 on success, or -1 if writing to standard output
- * fails. If stdin_fd or stdout_fd are set to -1, the default is to use
- * STDIN_FILENO and STDOUT_FILENO.
- */
 int linenoiseEditStart(struct linenoiseState *l,
                        int stdin_fd,
                        int stdout_fd,
@@ -928,24 +886,6 @@ char *linenoiseEditMore =
   "called, if it returns linenoiseEditMore the user is yet editing the line. "
   "See the README file for more information.";
 
-/* This function is part of the multiplexed API of linenoise, see the top
- * comment on linenoiseEditStart() for more information. Call this function
- * each time there is some data to read from the standard input file
- * descriptor. In the case of blocking operations, this function can just be
- * called in a loop, and block.
- *
- * The function returns linenoiseEditMore to signal that line editing is still
- * in progress, that is, the user didn't yet pressed enter / CTRL-D. Otherwise
- * the function returns the pointer to the heap-allocated buffer with the
- * edited line, that the user should free with linenoiseFree().
- *
- * On special conditions, NULL is returned and errno is populated:
- *
- * EAGAIN if the user pressed Ctrl-C
- * ENOENT if the user pressed Ctrl-D
- *
- * Some other errno: I/O error.
- */
 char *linenoiseEditFeed(struct linenoiseState *l) {
     /* Not a TTY, pass control to line reading without character
      * count limits. */
@@ -1126,10 +1066,6 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     return linenoiseEditMore;
 }
 
-/* This is part of the multiplexed linenoise API. See linenoiseEditStart()
- * for more information. This function is called when linenoiseEditFeed()
- * returns something different than NULL. At this point the user input
- * is in the buffer, and we can restore the terminal in normal mode. */
 void linenoiseEditStop(struct linenoiseState *l) {
     if (!isatty(l->ifd)) {
         return;
@@ -1163,9 +1099,6 @@ static char *linenoiseBlockingEdit(int stdin_fd,
     return res;
 }
 
-/* This special mode is used by linenoise in order to print scan codes
- * on screen for debugging / development purposes. It is implemented
- * by the linenoise_example program using the --keycodes option. */
 void linenoisePrintKeyCodes(void) {
     char quit[4];
 
@@ -1237,11 +1170,6 @@ static char *linenoiseNoTTY(void) {
     }
 }
 
-/* The high level function that is the main API of the linenoise library.
- * This function checks if the terminal has basic capabilities, just checking
- * for a blacklist of stupid terminals, and later either calls the line
- * editing function or uses dummy fgets() so that you will be able to type
- * something even in the most desperate of the conditions. */
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
 
@@ -1270,10 +1198,6 @@ char *linenoise(const char *prompt) {
     return retval;
 }
 
-/* This is just a wrapper the user may want to call in order to make sure
- * the linenoise returned buffer is freed with the same allocator it was
- * created with. Useful when the main program is using an alternative
- * allocator. */
 void linenoiseFree(void *ptr) {
     if (ptr == linenoiseEditMore) {
         return; // Protect from API misuse.
@@ -1300,8 +1224,7 @@ static void linenoiseAtExit(void) {
     freeHistory();
 }
 
-/* This is the API call to add a new entry in the linenoise history.
- * It uses a fixed array of char pointers that are shifted (memmoved)
+/* Uses a fixed array of char pointers that are shifted (memmoved)
  * when the history max length is reached in order to remove the older
  * entry and make room for the new one, so it is not exactly suitable for huge
  * histories, but will work well for a few hundred of entries.
@@ -1342,10 +1265,6 @@ int linenoiseHistoryAdd(const char *line) {
     return 1;
 }
 
-/* Set the maximum length for the history. This function can be called even
- * if there is already some history, the function will make sure to retain
- * just the latest 'len' elements if the new history length value is smaller
- * than the amount of items already inside the history. */
 int linenoiseHistorySetMaxLen(int len) {
     if (len < 1) {
         return 0;
@@ -1379,8 +1298,6 @@ int linenoiseHistorySetMaxLen(int len) {
     return 1;
 }
 
-/* Save the history in the specified file. On success 0 is returned
- * otherwise -1 is returned. */
 int linenoiseHistorySave(const char *filename) {
     mode_t old_umask = umask(S_IXUSR | S_IRWXG | S_IRWXO);
     FILE *fp = fopen(filename, "w");
@@ -1396,11 +1313,6 @@ int linenoiseHistorySave(const char *filename) {
     return 0;
 }
 
-/* Load the history from the specified file. If the file does not exist
- * zero is returned and no operation is performed.
- *
- * If the file exists and the operation succeeded 0 is returned, otherwise
- * on error -1 is returned. */
 int linenoiseHistoryLoad(const char *filename) {
     FILE *fp = fopen(filename, "r");
     char buf[LINENOISE_MAX_LINE];
