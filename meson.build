@@ -36,7 +36,6 @@ if cc.get_id() == 'clang'
     c_suppressions += [
       '-Wno-declaration-after-statement',
       '-Wno-implicit-int-conversion',
-      '-Wno-missing-prototypes',
       '-Wno-padded',
       '-Wno-shorten-64-to-32',
       '-Wno-sign-conversion',
@@ -61,8 +60,6 @@ elif cc.get_id() == 'gcc'
       '-Wno-conversion',
       '-Wno-discarded-qualifiers',
       '-Wno-format',
-      '-Wno-missing-declarations',
-      '-Wno-missing-prototypes',
       '-Wno-padded',
       '-Wno-strict-overflow',
       '-Wno-suggest-attribute=pure',

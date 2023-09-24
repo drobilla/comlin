@@ -7,14 +7,14 @@
 #include <string.h>
 #include <strings.h>
 
-void completion(const char *buf, linenoiseCompletions *lc) {
+static void completion(const char *buf, linenoiseCompletions *lc) {
     if (buf[0] == 'h') {
         linenoiseAddCompletion(lc,"hello");
         linenoiseAddCompletion(lc,"hello there");
     }
 }
 
-char *hints(const char *buf, int *color, int *bold) {
+static char *hints(const char *buf, int *color, int *bold) {
     if (!strcasecmp(buf,"hello")) {
         *color = 35;
         *bold = 0;
