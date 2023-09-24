@@ -383,35 +383,35 @@ static char completeLine(struct linenoiseState *ls, char keypressed) {
         ls->in_completion = 0;
     } else {
         switch(c) {
-            case 9: /* tab */
-                if (ls->in_completion == 0) {
-                    ls->in_completion = 1;
-                    ls->completion_idx = 0;
-                } else {
-                    ls->completion_idx = (ls->completion_idx+1) % (lc.len+1);
-                    if (ls->completion_idx == lc.len) {
-                        linenoiseBeep();
-                    }
+        case 9: /* tab */
+            if (ls->in_completion == 0) {
+                ls->in_completion = 1;
+                ls->completion_idx = 0;
+            } else {
+                ls->completion_idx = (ls->completion_idx+1) % (lc.len+1);
+                if (ls->completion_idx == lc.len) {
+                    linenoiseBeep();
                 }
-                c = 0;
-                break;
-            case 27: /* escape */
-                /* Re-show original buffer */
-                if (ls->completion_idx < lc.len) {
-                    refreshLine(ls);
-                }
-                ls->in_completion = 0;
-                c = 0;
-                break;
-            default:
-                /* Update buffer and return */
-                if (ls->completion_idx < lc.len) {
-                    const int nwritten = snprintf(ls->buf,ls->buflen,"%s",
-                        lc.cvec[ls->completion_idx]);
-                    ls->len = ls->pos = nwritten;
-                }
-                ls->in_completion = 0;
-                break;
+            }
+            c = 0;
+            break;
+        case 27: /* escape */
+            /* Re-show original buffer */
+            if (ls->completion_idx < lc.len) {
+                refreshLine(ls);
+            }
+            ls->in_completion = 0;
+            c = 0;
+            break;
+        default:
+            /* Update buffer and return */
+            if (ls->completion_idx < lc.len) {
+                const int nwritten = snprintf(ls->buf,ls->buflen,"%s",
+                                              lc.cvec[ls->completion_idx]);
+                ls->len = ls->pos = nwritten;
+            }
+            ls->in_completion = 0;
+            break;
         }
 
         /* Show completion or original buffer */
@@ -1156,7 +1156,7 @@ void linenoisePrintKeyCodes(void) {
     char quit[4];
 
     printf("Linenoise key codes debugging mode.\n"
-            "Press keys to see scan codes. Type 'quit' at any time to exit.\n");
+           "Press keys to see scan codes. Type 'quit' at any time to exit.\n");
     if (enableRawMode(STDIN_FILENO) == -1) {
         return;
     }
@@ -1174,7 +1174,7 @@ void linenoisePrintKeyCodes(void) {
         }
 
         printf("'%c' %02x (%d) (type quit to exit)\n",
-            isprint(c) ? c : '?', (unsigned)c, (int)c);
+               isprint(c) ? c : '?', (unsigned)c, (int)c);
         printf("\r"); /* Go left edge manually, we are in raw mode. */
         fflush(stdout);
     }
