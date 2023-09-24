@@ -28,7 +28,7 @@ static char *hints(const char *buf, int *color, int *bold) {
 }
 
 int main(int argc, char **argv) {
-    char *line;
+    char *line = NULL;
     char *prgname = argv[0];
     int async = 0;
 
@@ -82,14 +82,13 @@ int main(int argc, char **argv) {
             while(1) {
 		fd_set readfds;
 		struct timeval tv;
-		int retval;
 
 		FD_ZERO(&readfds);
 		FD_SET(ls.ifd, &readfds);
 		tv.tv_sec = 1; // 1 sec timeout
 		tv.tv_usec = 0;
 
-		retval = select(ls.ifd+1, &readfds, NULL, NULL, &tv);
+		int retval = select(ls.ifd+1, &readfds, NULL, NULL, &tv);
 		if (retval == -1) {
 		    perror("select()");
                     exit(1);
