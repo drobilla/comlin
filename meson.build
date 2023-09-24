@@ -38,7 +38,6 @@ if cc.get_id() == 'clang'
       '-Wno-implicit-int-conversion',
       '-Wno-missing-prototypes',
       '-Wno-padded',
-      '-Wno-reserved-macro-identifier',
       '-Wno-shorten-64-to-32',
       '-Wno-sign-conversion',
       '-Wno-unsafe-buffer-usage',
