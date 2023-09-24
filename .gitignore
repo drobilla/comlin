@@ -1,2 +1,5 @@
+# Copyright 2023 David Robillard <d@drobilla.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
 .meson-subproject-wrap-hash.txt
 build/

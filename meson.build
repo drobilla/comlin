@@ -125,6 +125,23 @@ meson.override_dependency(versioned_name, linenoise_dep)
 # Install header to a versioned include directory
 install_headers(c_headers, subdir: versioned_name / 'linenoise')
 
+#########
+# Tests #
+#########
+
+if not meson.is_subproject()
+  # Check licensing metadata
+  reuse = find_program('reuse', required: false)
+  if reuse.found()
+    test(
+      'REUSE',
+      reuse,
+      args: ['--root', linenoise_src_root, 'lint'],
+      suite: 'data',
+    )
+  endif
+endif
+
 ############
 # Examples #
 ############
