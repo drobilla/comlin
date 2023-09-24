@@ -56,7 +56,6 @@ if cc.get_id() == 'clang'
 elif cc.get_id() == 'gcc'
   if warning_level == 'everything'
     c_suppressions += [
-      '-Wno-c++-compat',
       '-Wno-conversion',
       '-Wno-discarded-qualifiers',
       '-Wno-format',
