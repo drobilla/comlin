@@ -19,7 +19,6 @@ Checks: >
   -modernize-macro-to-enum,
   -readability-function-cognitive-complexity,
   -readability-identifier-length,
-  -readability-isolate-declaration,
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 FormatStyle: file

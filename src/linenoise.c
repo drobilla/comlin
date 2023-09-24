@@ -243,7 +243,8 @@ static void disableRawMode(int fd) {
  * cursor. */
 static int getCursorPosition(int ifd, int ofd) {
     char buf[32];
-    int cols, rows;
+    int cols;
+    int rows;
     unsigned int i = 0;
 
     /* Report cursor location */
@@ -270,7 +271,8 @@ static int getColumns(int ifd, int ofd) {
 
     if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
         /* ioctl() failed. Try to query the terminal itself. */
-        int start, cols;
+        int start;
+        int cols;
 
         /* Get the initial position so we can restore it later. */
         start = getCursorPosition(ifd,ofd);
@@ -441,7 +443,8 @@ void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *fn) {
  * understand example. */
 void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
     size_t len = strlen(str);
-    char *copy, **cvec;
+    char *copy;
+    char **cvec;
 
     copy = (char*)malloc(len+1);
     if (copy == NULL) return;
@@ -489,7 +492,8 @@ static void abFree(struct abuf *ab) {
 static void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
     char seq[64];
     if (hintsCallback && plen+l->len < l->cols) {
-        int color = -1, bold = 0;
+        int color = -1;
+        int bold = 0;
         char *hint = hintsCallback(l->buf,&color,&bold);
         if (hint) {
             int hintlen = strlen(hint);
@@ -581,7 +585,8 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
     int rpos2; /* rpos after refresh. */
     int col; /* column position, zero-based. */
     int old_rows = l->oldrows;
-    int fd = l->ofd, j;
+    int fd = l->ofd;
+    int j;
     struct abuf ab;
 
     l->oldrows = rows;
@@ -1124,7 +1129,8 @@ void linenoisePrintKeyCodes(void) {
  * line regardless of its length (by default we are limited to 4k). */
 static char *linenoiseNoTTY(void) {
     char *line = NULL;
-    size_t len = 0, maxlen = 0;
+    size_t len = 0;
+    size_t maxlen = 0;
 
     while(1) {
         if (len == maxlen) {
