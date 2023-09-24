@@ -1,3 +1,2 @@
-linenoise_example
-*.dSYM
-history.txt
+.meson-subproject-wrap-hash.txt
+build/
