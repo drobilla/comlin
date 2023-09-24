@@ -69,7 +69,9 @@ int main(int argc, char **argv) {
     while(1) {
         if (!async) {
             line = linenoise("hello> ");
-            if (line == NULL) break;
+            if (line == NULL) {
+                break;
+            }
         } else {
             /* Asynchronous mode using the multiplexing API: wait for
              * data on stdin, and simulate async data coming from some source
@@ -96,7 +98,9 @@ int main(int argc, char **argv) {
                     /* A NULL return means: line editing is continuing.
                      * Otherwise the user hit enter or stopped editing
                      * (CTRL+C/D). */
-                    if (line != linenoiseEditMore) break;
+            if (line != linenoiseEditMore) {
+                break;
+            }
 		} else {
 		    // Timeout occurred
                     static int counter = 0;
@@ -106,7 +110,9 @@ int main(int argc, char **argv) {
 		}
             }
             linenoiseEditStop(&ls);
-            if (line == NULL) exit(0); /* Ctrl+D/C. */
+            if (line == NULL) { /* Ctrl+D/C. */
+                exit(0);
+            }
         }
 
         /* Do something with the string. */
