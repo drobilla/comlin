@@ -86,7 +86,7 @@ this:
 
     while((line = linenoise("hello> ")) != NULL) {
         printf("You wrote: %s\n", line);
-        linenoiseFree(line); /* Or just free(line) if you use libc malloc. */
+        linenoiseFree(line); // Or just free(line) if you use libc malloc
     }
 
 ## Single line VS multi line editing
@@ -336,7 +336,7 @@ example using select(2) and the asynchronous API:
         }
     }
     linenoiseEditStop(&ls);
-    if (line == NULL) exit(0); /* Ctrl+D/C. */
+    if (line == NULL) exit(0); // Ctrl+D/C
 ```
 
 You can test the example by running the example program with the `--async` option.
