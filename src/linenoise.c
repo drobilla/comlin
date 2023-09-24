@@ -290,9 +290,9 @@ static int getColumns(int ifd, int ofd) {
             }
         }
         return cols;
-    } else {
-        return ws.ws_col;
     }
+
+    return ws.ws_col;
 
 failed:
     return 80;
@@ -767,7 +767,8 @@ static void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
         if (l->history_index < 0) {
             l->history_index = 0;
             return;
-        } else if (l->history_index >= history_len) {
+        }
+        if (l->history_index >= history_len) {
             l->history_index = history_len-1;
             return;
         }
@@ -1141,14 +1142,13 @@ static char *linenoiseNoTTY(void) {
             if (c == EOF && len == 0) {
                 free(line);
                 return NULL;
-            } else {
-                line[len] = '\0';
-                return line;
             }
-        } else {
-            line[len] = (char)c;
-            len++;
+            line[len] = '\0';
+            return line;
         }
+
+        line[len] = (char)c;
+        len++;
     }
 }
 
@@ -1164,7 +1164,9 @@ char *linenoise(const char *prompt) {
         /* Not a tty: read from file / pipe. In this mode we don't want any
          * limit to the line size, so we call a function to handle that. */
         return linenoiseNoTTY();
-    } else if (isUnsupportedTerm()) {
+    }
+
+    if (isUnsupportedTerm()) {
         size_t len;
 
         printf("%s",prompt);
@@ -1176,10 +1178,10 @@ char *linenoise(const char *prompt) {
             buf[len] = '\0';
         }
         return strdup(buf);
-    } else {
-        char *retval = linenoiseBlockingEdit(STDIN_FILENO,STDOUT_FILENO,buf,LINENOISE_MAX_LINE,prompt);
-        return retval;
     }
+
+    char *retval = linenoiseBlockingEdit(STDIN_FILENO,STDOUT_FILENO,buf,LINENOISE_MAX_LINE,prompt);
+    return retval;
 }
 
 /* This is just a wrapper the user may want to call in order to make sure
