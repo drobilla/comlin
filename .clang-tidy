@@ -1,0 +1,37 @@
+# Copyright 2021-2023 David Robillard <d@drobilla.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+Checks: >
+  *,
+  -*-braces-around-statements,
+  -*-magic-numbers,
+  -*-named-parameter,
+  -*-narrowing-conversions,
+  -altera-*,
+  -android-cloexec-fopen,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier,
+  -bugprone-signed-char-misuse,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  -cert-err33-c,
+  -cert-err34-c,
+  -cert-str34-c,
+  -concurrency-mt-unsafe,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-init-variables,
+  -hicpp-signed-bitwise,
+  -llvm-else-after-return,
+  -llvm-header-guard,
+  -llvm-include-order,
+  -llvmlibc-*,
+  -modernize-macro-to-enum,
+  -readability-duplicate-include,
+  -readability-else-after-return,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-isolate-declaration,
+  -readability-redundant-declaration,
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
+FormatStyle: file
