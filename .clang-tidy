@@ -12,7 +12,6 @@ Checks: >
   -cert-err34-c,
   -concurrency-mt-unsafe,
   -cppcoreguidelines-avoid-non-const-global-variables,
-  -hicpp-signed-bitwise,
   -llvmlibc-*,
   -modernize-macro-to-enum,
   -readability-function-cognitive-complexity,

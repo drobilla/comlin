@@ -91,7 +91,7 @@ static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
 static char *linenoiseNoTTY(void);
 static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseCompletions *lc, int flags);
-static void refreshLineWithFlags(struct linenoiseState *l, int flags);
+static void refreshLineWithFlags(struct linenoiseState *l, unsigned flags);
 
 static struct termios orig_termios; /* In order to restore at exit.*/
 static int maskmode = 0; /* Show "***" instead of input. For passwords. */
@@ -125,8 +125,8 @@ enum KEY_ACTION{
 };
 
 static void linenoiseAtExit(void);
-#define REFRESH_CLEAN (1<<0)    // Clean the old prompt from the screen
-#define REFRESH_WRITE (1<<1)    // Rewrite the prompt on the screen.
+#define REFRESH_CLEAN (1U<<0U)    // Clean the old prompt from the screen
+#define REFRESH_WRITE (1U<<1U)    // Rewrite the prompt on the screen.
 #define REFRESH_ALL (REFRESH_CLEAN|REFRESH_WRITE) // Do both.
 static void refreshLine(struct linenoiseState *l);
 
@@ -185,16 +185,19 @@ static int enableRawMode(int fd) {
     }
 
     raw = orig_termios;  /* modify the original mode */
-    /* input modes: no break, no CR to NL, no parity check, no strip char,
-     * no start/stop output control. */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    /* output modes - disable post processing */
-    raw.c_oflag &= ~(OPOST);
-    /* control modes - set 8 bit chars */
-    raw.c_cflag |= (CS8);
-    /* local modes - choing off, canonical off, no extended functions,
-     * no signal chars (^Z,^C) */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+
+    raw.c_iflag &= ~(tcflag_t)BRKINT; // No break
+    raw.c_iflag &= ~(tcflag_t)ICRNL;  // No CR to NL
+    raw.c_iflag &= ~(tcflag_t)INPCK;  // No parity check
+    raw.c_iflag &= ~(tcflag_t)ISTRIP; // No strip char
+    raw.c_iflag &= ~(tcflag_t)IXON;   // No flow control
+    raw.c_oflag &= ~(tcflag_t)OPOST;  // No post processing
+    raw.c_cflag |= (tcflag_t)CS8;     // 8 bit characters
+    raw.c_lflag &= ~(tcflag_t)ECHO;   // No echo
+    raw.c_lflag &= ~(tcflag_t)ICANON; // No canonical mode
+    raw.c_lflag &= ~(tcflag_t)IEXTEN; // No extended functions
+    raw.c_lflag &= ~(tcflag_t)ISIG;   // No signal chars (^Z, ^C)
+
     /* control chars - set return condition: min number of bytes and timer.
      * We want read to return every single byte, without timeout. */
     raw.c_cc[VMIN] = 1; raw.c_cc[VTIME] = 0; /* 1 byte, no timer */
@@ -537,7 +540,7 @@ static void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen
  *
  * Flags is REFRESH_* macros. The function can just remove the old
  * prompt, just write it, or both. */
-static void refreshSingleLine(struct linenoiseState *l, int flags) {
+static void refreshSingleLine(struct linenoiseState *l, unsigned flags) {
     char seq[64];
     size_t plen = strlen(l->prompt);
     int fd = l->ofd;
@@ -595,7 +598,7 @@ static void refreshSingleLine(struct linenoiseState *l, int flags) {
  *
  * Flags is REFRESH_* macros. The function can just remove the old
  * prompt, just write it, or both. */
-static void refreshMultiLine(struct linenoiseState *l, int flags) {
+static void refreshMultiLine(struct linenoiseState *l, unsigned flags) {
     char seq[64];
     int plen = strlen(l->prompt);
     int rows = (plen+l->len+l->cols-1)/l->cols; /* rows used by current buf. */
@@ -685,7 +688,7 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
 
 /* Calls the two low level functions refreshSingleLine() or
  * refreshMultiLine() according to the selected mode. */
-static void refreshLineWithFlags(struct linenoiseState *l, int flags) {
+static void refreshLineWithFlags(struct linenoiseState *l, unsigned flags) {
     if (mlmode) {
         refreshMultiLine(l,flags);
     } else {
