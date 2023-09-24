@@ -5,7 +5,6 @@ Checks: >
   *,
   -*-braces-around-statements,
   -*-magic-numbers,
-  -*-named-parameter,
   -*-narrowing-conversions,
   -altera-*,
   -android-cloexec-fopen,
