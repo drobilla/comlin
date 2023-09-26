@@ -29,31 +29,44 @@ extern "C" {
    @{
 */
 
-/** The state during line editing.
+/**
+   @defgroup comlin_state State
+   @{
+*/
+
+/** The state of a command line session.
  *
- * This is passed to functions implementing specific editing functionalities.
+ * This stores all of the state needed by a command line session for a
+ * terminal.  A program may have several of these, but only one should exist
+ * for a particular terminal.
  */
-struct comlinState {
-    int in_completion; /**< The user pressed TAB and we are now in completion
-                        * mode, so input is handled by completeLine(). */
+typedef struct ComlinStateImpl ComlinState;
 
-    size_t completion_idx; ///< Index of next completion to propose
+/** Create a new terminal session.
+ *
+ * The returned state represents a connection to the terminal.  This may write
+ * escape sequences to the terminal to determine its width, but otherwise
+ * doesn't cause any output changes.
+ *
+ * @return A new state that must be freed with comlinFreeState().
+ */
+COMLIN_API ComlinState*
+comlinNewState(int stdin_fd,
+               int stdout_fd,
+               char* buf,
+               size_t buflen,
+               const char* prompt);
 
-    int ifd;            ///< Terminal stdin file descriptor
-    int ofd;            ///< Terminal stdout file descriptor
-    char* buf;          ///< Edited line buffer
-    size_t buflen;      ///< Edited line buffer size
-    const char* prompt; ///< Prompt to display
-    size_t plen;        ///< Prompt length
-    size_t pos;         ///< Current cursor position
-    size_t oldpos;      ///< Previous refresh cursor position
-    size_t len;         ///< Current edited line length
-    size_t cols;        ///< Number of columns in terminal
-    size_t oldrows;     ///< Rows used by last refreshed line (multi-line mode)
-    int history_index;  ///< The history index we are currently editing
-};
+/** Free a terminal session.
+ *
+ * If a line edit is still in progress, this will reset the terminal to normal
+ * mode, without writing any output (not even a trailing newline).
+ */
+COMLIN_API void
+comlinFreeState(ComlinState* state);
 
 /**
+   @}
    @defgroup comlin_non_blocking Non-blocking API
    @{
 */
@@ -78,18 +91,13 @@ COMLIN_API extern char* comlinEditMore;
  * When #comlinEditFeed returns non-NULL, the user finished with the line
  * editing session (pressed enter CTRL-D/C): in this case the caller needs to
  * call #comlinEditStop to put back the terminal in normal mode.  This won't
- * destroy the buffer, as long as the #comlinState is still valid in the
+ * destroy the buffer, as long as the #ComlinState is still valid in the
  * context of the caller.
  *
  * @return 0 on success, or -1 if writing to standard output fails.
  */
 COMLIN_API int
-comlinEditStart(struct comlinState* l,
-                int stdin_fd,
-                int stdout_fd,
-                char* buf,
-                size_t buflen,
-                const char* prompt);
+comlinEditStart(ComlinState* l);
 
 /** This function is part of the multiplexed API of comlin, see the top
  * comment on #comlinEditStart for more information.  Call this function
@@ -100,14 +108,14 @@ comlinEditStart(struct comlinState* l,
  * The function returns #comlinEditMore to signal that line editing is still
  * in progress, that is, the user didn't yet pressed enter / CTRL-D.  Otherwise
  * the function returns the pointer to the heap-allocated buffer with the
- * edited line, that the user should free with #comlinFree.
+ * edited line, that the user should free with #comlinFreeCommand.
  *
  * On special conditions, NULL is returned and errno is set to `EAGAIN` if the
  * user pressed Ctrl-C, `ENOENT` if the user pressed Ctrl-D, or some other
  * error number on an I/O error.
  */
 COMLIN_API char*
-comlinEditFeed(struct comlinState* l);
+comlinEditFeed(ComlinState* l);
 
 /** Finish editing a line.
  *
@@ -116,15 +124,15 @@ comlinEditFeed(struct comlinState* l);
  * restore the terminal to normal mode.
  */
 COMLIN_API void
-comlinEditStop(struct comlinState* l);
+comlinEditStop(ComlinState* l);
 
 /// Hide the current line, when using the multiplexing API
 COMLIN_API void
-comlinHide(struct comlinState* l);
+comlinHide(ComlinState* l);
 
 /// Show the current line, when using the multiplexing API
 COMLIN_API void
-comlinShow(struct comlinState* l);
+comlinShow(ComlinState* l);
 
 /**
    @}
@@ -139,14 +147,14 @@ comlinShow(struct comlinState* l);
  * type something even in the most desperate of the conditions.
  *
  * @return A newly allocated command string that must be freed with
- * #comlinFree.
+ * #comlinFreeCommand.
  */
 COMLIN_API char*
-comlin(const char* prompt);
+comlinReadLine(ComlinState* state, const char* prompt);
 
 /// Free a command string returned by comlin()
 COMLIN_API void
-comlinFree(void* ptr);
+comlinFreeCommand(void* ptr);
 
 /**
    @}
@@ -175,15 +183,15 @@ typedef void(comlinFreeHintsCallback)(void*);
 
 /// Register a callback function to be called for tab-completion
 COMLIN_API void
-comlinSetCompletionCallback(comlinCompletionCallback* fn);
+comlinSetCompletionCallback(ComlinState* state, comlinCompletionCallback* fn);
 
 /// Register a callback function to show hints to the right of the prompt
 COMLIN_API void
-comlinSetHintsCallback(comlinHintsCallback* fn);
+comlinSetHintsCallback(ComlinState* state, comlinHintsCallback* fn);
 
 /// Register a function to free the hints returned by the hints callback
 COMLIN_API void
-comlinSetFreeHintsCallback(comlinFreeHintsCallback* fn);
+comlinSetFreeHintsCallback(ComlinState* state, comlinFreeHintsCallback* fn);
 
 /** Add completion options for the current input string.
  *
@@ -205,7 +213,7 @@ comlinAddCompletion(comlinCompletions* lc, const char* str);
  * saved explicitly with #comlinHistorySave.
  */
 COMLIN_API int
-comlinHistoryAdd(const char* line);
+comlinHistoryAdd(ComlinState* state, const char* line);
 
 /** Set the maximum length for the history.
  *
@@ -214,21 +222,21 @@ comlinHistoryAdd(const char* line);
  * length is less than the number of items already in the history.
  */
 COMLIN_API int
-comlinHistorySetMaxLen(int len);
+comlinHistorySetMaxLen(ComlinState* state, int len);
 
 /** Save the history in the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
 COMLIN_API int
-comlinHistorySave(const char* filename);
+comlinHistorySave(const ComlinState* state, const char* filename);
 
 /** Load the history from the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
 COMLIN_API int
-comlinHistoryLoad(const char* filename);
+comlinHistoryLoad(ComlinState* state, const char* filename);
 
 /**
    @}
@@ -238,18 +246,11 @@ comlinHistoryLoad(const char* filename);
 
 /// Clear the screen
 COMLIN_API void
-comlinClearScreen(void);
+comlinClearScreen(ComlinState* state);
 
 /// Set whether to use multi-line mode
 COMLIN_API void
-comlinSetMultiLine(int ml);
-
-/** This special mode is used by comlin in order to print scan codes on
- * screen for debugging / development purposes.  It is implemented by the
- * comlin_example program using the --keycodes option.
- */
-COMLIN_API void
-comlinPrintKeyCodes(void);
+comlinSetMultiLine(ComlinState* state, int ml);
 
 /** Enable "mask mode".
  *
@@ -258,7 +259,7 @@ comlinPrintKeyCodes(void);
  * displayed.
  */
 COMLIN_API void
-comlinMaskModeEnable(void);
+comlinMaskModeEnable(ComlinState* state);
 
 /** Disable "mask mode".
  *
@@ -266,7 +267,7 @@ comlinMaskModeEnable(void);
  * comlinMaskModeEnable().
  */
 COMLIN_API void
-comlinMaskModeDisable(void);
+comlinMaskModeDisable(ComlinState* state);
 
 /**
    @}

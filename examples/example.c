@@ -5,7 +5,9 @@
 #include "comlin/comlin.h"
 
 #include <sys/select.h>
+#include <unistd.h>
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,22 +33,67 @@ hints(const char* buf, int* color, int* bold)
     return NULL;
 }
 
+static void
+printKeyCodesLoop(void)
+{
+    char buf[1024];
+    char quit[4] = {' ', ' ', ' ', ' '};
+
+    printf("Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
+
+    // Start an edit just to set the terminal to raw mode
+    ComlinState* const state = comlinNewState(0, 1, buf, sizeof(buf), "");
+    comlinEditStart(state);
+
+    // Ignore it and process input keys ourselves
+    while (1) {
+        // Read an input character
+        char c = '\0';
+        const int nread = read(STDIN_FILENO, &c, 1);
+        if (nread <= 0) {
+            continue;
+        }
+
+        // Insert it as the rightmost in the buffer (pushing one off the left)
+        memmove(quit, quit + 1, sizeof(quit) - 1);
+        quit[sizeof(quit) - 1] = c;
+        if (memcmp(quit, "quit", sizeof(quit)) == 0) {
+            break;
+        }
+
+        // Print the key code and continue
+        printf("'%c' %02x (%d) (type quit to exit)\n",
+               isprint(c) ? c : '?',
+               (unsigned)c,
+               (int)c);
+        printf("\r");
+        fflush(stdout);
+    }
+
+    // Reset terminal mode
+    comlinEditStop(state);
+    comlinFreeState(state);
+}
+
 int
 main(int argc, char** argv)
 {
     char* line = NULL;
     char* prgname = argv[0];
     int async = 0;
+    int multiline = 0;
+
+    char buf[1024];
 
     // Parse options, with --multiline we enable multi line editing
     while (argc > 1) {
         --argc;
         ++argv;
         if (!strcmp(*argv, "--multiline")) {
-            comlinSetMultiLine(1);
+            multiline = 1;
             printf("Multi-line mode enabled.\n");
         } else if (!strcmp(*argv, "--keycodes")) {
-            comlinPrintKeyCodes();
+            printKeyCodesLoop();
             return 0;
         } else if (!strcmp(*argv, "--async")) {
             async = 1;
@@ -58,14 +105,19 @@ main(int argc, char** argv)
         }
     }
 
+    ComlinState* const state = comlinNewState(0, 1, buf, sizeof(buf), "hello>");
+    if (multiline) {
+        comlinSetMultiLine(state, 1);
+    }
+
     /* Set the completion callback. This will be called every time the
      * user uses the <tab> key. */
-    comlinSetCompletionCallback(completion);
-    comlinSetHintsCallback(hints);
+    comlinSetCompletionCallback(state, completion);
+    comlinSetHintsCallback(state, hints);
 
     /* Load history from file. The history file is just a plain text file
      * where entries are separated by newlines. */
-    comlinHistoryLoad("history.txt"); // Load the history at startup
+    comlinHistoryLoad(state, "history.txt"); // Load the history at startup
 
     /* Now this is the main loop of the typical comlin-based application.
      * The call to comlin() will block as long as the user types something
@@ -76,7 +128,7 @@ main(int argc, char** argv)
 
     while (1) {
         if (!async) {
-            line = comlin("hello> ");
+            line = comlinReadLine(state, "hello> ");
             if (line == NULL) {
                 break;
             }
@@ -84,26 +136,24 @@ main(int argc, char** argv)
             /* Asynchronous mode using the multiplexing API: wait for
              * data on stdin, and simulate async data coming from some source
              * using the select(2) timeout. */
-            struct comlinState ls;
-            char buf[1024];
-            comlinEditStart(&ls, -1, -1, buf, sizeof(buf), "hello> ");
+            comlinEditStart(state);
             while (1) {
                 fd_set readfds;
                 struct timeval tv;
 
                 FD_ZERO(&readfds);
-                FD_SET(ls.ifd, &readfds);
+                FD_SET(0, &readfds);
                 tv.tv_sec = 1; // 1 sec timeout
                 tv.tv_usec = 0;
 
-                int retval = select(ls.ifd + 1, &readfds, NULL, NULL, &tv);
+                int retval = select(1, &readfds, NULL, NULL, &tv);
                 if (retval == -1) {
                     perror("select()");
                     return 1;
                 }
 
                 if (retval) {
-                    line = comlinEditFeed(&ls);
+                    line = comlinEditFeed(state);
                     /* A NULL return means: line editing is continuing.
                      * Otherwise the user hit enter or stopped editing
                      * (CTRL+C/D). */
@@ -113,13 +163,14 @@ main(int argc, char** argv)
                 } else {
                     // Timeout occurred
                     static int counter = 0;
-                    comlinHide(&ls);
+                    comlinHide(state);
                     printf("Async output %d.\n", counter++);
-                    comlinShow(&ls);
+                    comlinShow(state);
                 }
             }
-            comlinEditStop(&ls);
+            comlinEditStop(state);
             if (line == NULL) { // Ctrl+D/C
+                comlinFreeState(state);
                 return 0;
             }
         }
@@ -127,20 +178,22 @@ main(int argc, char** argv)
         // Do something with the string
         if (line[0] != '\0' && line[0] != '/') {
             printf("echo: '%s'\n", line);
-            comlinHistoryAdd(line);           // Add to the history
-            comlinHistorySave("history.txt"); // Save the history on disk
+            comlinHistoryAdd(state, line);           // Add to the history
+            comlinHistorySave(state, "history.txt"); // Save history to disk
         } else if (!strncmp(line, "/historylen", 11)) {
             // The "/historylen" command will change the history len
             int len = atoi(line + 11);
-            comlinHistorySetMaxLen(len);
+            comlinHistorySetMaxLen(state, len);
         } else if (!strncmp(line, "/mask", 5)) {
-            comlinMaskModeEnable();
+            comlinMaskModeEnable(state);
         } else if (!strncmp(line, "/unmask", 7)) {
-            comlinMaskModeDisable();
+            comlinMaskModeDisable(state);
         } else if (line[0] == '/') {
             printf("Unreconized command: %s\n", line);
         }
         free(line);
     }
+
+    comlinFreeState(state);
     return 0;
 }
