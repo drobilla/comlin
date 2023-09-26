@@ -1,8 +1,8 @@
 Comlin
 ======
 
-A minimal, zero-config, BSD-licensed, C library that implements a command-line
-for VT-100 compatible terminals.
+A minimal C library that implements a command line with history for VT-100
+compatible terminals.
 
 The user interface is a minimal subset of readline's default key bindings:
 
@@ -26,9 +26,45 @@ The user interface is a minimal subset of readline's default key bindings:
   * Tab: Auto-complete current input.
   * Ctrl-l:	Clear the screen.
 
-The implementation is a clean C99 library which can be installed and linked
-against, or easily copied into another project.
+The implementation is a BSD-licensed C99 library with about a thousand lines of
+code in a single file, alongside a header that declares the public API.
 
+Requirements
+------------
+
+Comlin requires a reasonably modern POSIX system with a C99 or newer compiler.
+It works on terminals that support the following common VT-100 escape sequences:
+
+* `EL` (Erase Line): `ESC [ n K`
+  * If `n` is 0 or missing, clear from cursor to end of line.
+  * If `n` is 1, clear from beginning of line to cursor.
+  * If `n` is 2, clear entire line.
+* `CUF` (CUrsor Forward): `ESC [ n C`
+  * Move the cursor forward `n` characters.
+* `CUB` (CUrsor Backward): `ESC [ n D`
+  * Move the cursor backward `n` characters.
+
+Basic functionality requires only these three, but others may be used
+conditionally.  If getting the terminal width via the `TIOCGWINSZ` ioctl fails,
+it will be requested from the terminal:
+
+* `DSR` (Device Status Report): `ESC [ 6 n`
+  * Report the current cursor row `n` and column `m` as `ESC [ n ; m R`.
+
+If multi-line mode is enabled, the cursor may move vertically:
+
+* `CUU` (Cursor Up): `ESC [ n A`
+  * Move the cursor up `n` lines.
+* `CUD` (Cursor Down): Sequence: `ESC [ n B`
+  * Move the cursor down `n` lines.
+
+If comlinClearScreen() is called, the terminal is asked to return the cursor to
+home and erase the display:
+
+* `CUP` (Cursor position): `ESC [ H`
+  * Move the cursor to upper left corner.
+* `ED` (Erase display): `ESC [ 2 J`
+  * Clear the entire screen.
 
 Related projects
 ----------------
