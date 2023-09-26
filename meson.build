@@ -148,6 +148,12 @@ endif
 
 subdir('examples')
 
+#################
+# Documentation #
+#################
+
+subdir('doc')
+
 # Display configuration summary
 if not meson.is_subproject()
   summary('Install prefix', get_option('prefix'))

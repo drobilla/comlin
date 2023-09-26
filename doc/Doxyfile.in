@@ -1,0 +1,33 @@
+# Copyright 2021-2023 David Robillard <d@drobilla.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+PROJECT_NAME           = Linenoise
+PROJECT_BRIEF          = "A minimal C library that implements a command line with history for VT-100 compatible terminals."
+
+QUIET                  = YES
+WARN_AS_ERROR          = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_NO_PARAMDOC       = NO
+
+JAVADOC_AUTOBRIEF      = YES
+
+FULL_PATH_NAMES        = NO
+CASE_SENSE_NAMES       = YES
+HIDE_IN_BODY_DOCS      = YES
+REFERENCES_LINK_SOURCE = NO
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+XML_PROGRAMLISTING     = NO
+SHOW_FILES             = NO
+
+EXPAND_ONLY_PREDEF     = YES
+MACRO_EXPANSION        = YES
+SKIP_FUNCTION_MACROS   = NO
+PREDEFINED             = LINENOISE_API=
+
+STRIP_FROM_PATH        = @LINENOISE_SRCDIR@
+INPUT                  = @LINENOISE_SRCDIR@/include/linenoise/linenoise.h
+
+OUTPUT_DIRECTORY       = @DOX_OUTPUT@
