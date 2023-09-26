@@ -33,9 +33,9 @@
 
 struct ComlinStateImpl {
     // Callbacks
-    comlinCompletionCallback* completionCallback; ///< Get completions
-    comlinHintsCallback* hintsCallback;           ///< Get hints
-    comlinFreeHintsCallback* freeHintsCallback;   ///< Free hint
+    ComlinCompletionCallback* completionCallback; ///< Get completions
+    ComlinHintsCallback* hintsCallback;           ///< Get hints
+    ComlinFreeHintsCallback* freeHintsCallback;   ///< Free hint
 
     // Terminal session state
     int ifd;      ///< Terminal stdin file descriptor
@@ -73,7 +73,7 @@ static char*
 comlinNoTTY(void);
 
 static void
-refreshLineWithCompletion(ComlinState* ls, comlinCompletions* lc, int flags);
+refreshLineWithCompletion(ComlinState* ls, ComlinCompletions* lc, int flags);
 
 static void
 refreshLineWithFlags(ComlinState* l, unsigned flags);
@@ -290,7 +290,7 @@ comlinBeep(void)
 
 // Free a list of completion option populated by comlinAddCompletion()
 static void
-freeCompletions(comlinCompletions* lc)
+freeCompletions(ComlinCompletions* lc)
 {
     for (size_t i = 0; i < lc->len; ++i) {
         free(lc->cvec[i]);
@@ -308,11 +308,11 @@ freeCompletions(comlinCompletions* lc)
  * Flags are the same as refreshLine*(), that is REFRESH_* macros. */
 static void
 refreshLineWithCompletion(ComlinState* const ls,
-                          comlinCompletions* lc,
+                          ComlinCompletions* lc,
                           int flags)
 {
     // Obtain the table of completions if the caller didn't provide one
-    comlinCompletions ctable = {0, NULL};
+    ComlinCompletions ctable = {0, NULL};
     if (lc == NULL) {
         ls->completionCallback(ls->buf, &ctable);
         lc = &ctable;
@@ -354,7 +354,7 @@ refreshLineWithCompletion(ComlinState* const ls,
 static char
 completeLine(ComlinState* const ls, char keypressed)
 {
-    comlinCompletions lc = {0, NULL};
+    ComlinCompletions lc = {0, NULL};
     char c = keypressed;
 
     ls->completionCallback(ls->buf, &lc);
@@ -408,26 +408,26 @@ completeLine(ComlinState* const ls, char keypressed)
 
 void
 comlinSetCompletionCallback(ComlinState* const state,
-                            comlinCompletionCallback* const fn)
+                            ComlinCompletionCallback* const fn)
 {
     state->completionCallback = fn;
 }
 
 void
-comlinSetHintsCallback(ComlinState* const state, comlinHintsCallback* const fn)
+comlinSetHintsCallback(ComlinState* const state, ComlinHintsCallback* const fn)
 {
     state->hintsCallback = fn;
 }
 
 void
 comlinSetFreeHintsCallback(ComlinState* const state,
-                           comlinFreeHintsCallback* const fn)
+                           ComlinFreeHintsCallback* const fn)
 {
     state->freeHintsCallback = fn;
 }
 
 void
-comlinAddCompletion(comlinCompletions* lc, const char* str)
+comlinAddCompletion(ComlinCompletions* lc, const char* str)
 {
     size_t len = strlen(str);
 
@@ -968,7 +968,7 @@ comlinEditFeed(ComlinState* const l)
         if (l->hintsCallback) {
             /* Force a refresh without hints to leave the previous
              * line as the user typed it after a newline. */
-            comlinHintsCallback* hc = l->hintsCallback;
+            ComlinHintsCallback* hc = l->hintsCallback;
             l->hintsCallback = NULL;
             refreshLine(l);
             l->hintsCallback = hc;

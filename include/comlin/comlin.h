@@ -167,31 +167,31 @@ comlinFreeCommand(void* ptr);
  * This is passed to the completion callback, which can add completions to it
  * with #comlinAddCompletion.
  */
-typedef struct comlinCompletions {
+typedef struct {
     size_t len;  ///< Number of elements in cvec
     char** cvec; ///< Array of string pointers
-} comlinCompletions;
+} ComlinCompletions;
 
 /// Completion callback
-typedef void(comlinCompletionCallback)(const char*, comlinCompletions*);
+typedef void(ComlinCompletionCallback)(const char*, ComlinCompletions*);
 
 /// Prompt hint callback
-typedef char*(comlinHintsCallback)(const char*, int* color, int* bold);
+typedef char*(ComlinHintsCallback)(const char*, int* color, int* bold);
 
-/// Function to free a hint returned by a #comlinHintsCallback
-typedef void(comlinFreeHintsCallback)(void*);
+/// Function to free a hint returned by a #ComlinHintsCallback
+typedef void(ComlinFreeHintsCallback)(void*);
 
 /// Register a callback function to be called for tab-completion
 COMLIN_API void
-comlinSetCompletionCallback(ComlinState* state, comlinCompletionCallback* fn);
+comlinSetCompletionCallback(ComlinState* state, ComlinCompletionCallback* fn);
 
 /// Register a callback function to show hints to the right of the prompt
 COMLIN_API void
-comlinSetHintsCallback(ComlinState* state, comlinHintsCallback* fn);
+comlinSetHintsCallback(ComlinState* state, ComlinHintsCallback* fn);
 
 /// Register a function to free the hints returned by the hints callback
 COMLIN_API void
-comlinSetFreeHintsCallback(ComlinState* state, comlinFreeHintsCallback* fn);
+comlinSetFreeHintsCallback(ComlinState* state, ComlinFreeHintsCallback* fn);
 
 /** Add completion options for the current input string.
  *
@@ -199,7 +199,7 @@ comlinSetFreeHintsCallback(ComlinState* state, comlinFreeHintsCallback* fn);
  * input string when the user pressed `TAB`.
  */
 COMLIN_API void
-comlinAddCompletion(comlinCompletions* lc, const char* str);
+comlinAddCompletion(ComlinCompletions* lc, const char* str);
 
 /**
    @}
