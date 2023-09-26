@@ -85,15 +85,22 @@
 
 #define COMLIN_DEFAULT_HISTORY_MAX_LEN 100
 #define COMLIN_MAX_LINE 4096
+
 static const char *unsupported_term[] = {"dumb", "cons25", "emacs", NULL};
 static comlinCompletionCallback *completionCallback = NULL;
 static comlinHintsCallback *hintsCallback = NULL;
 static comlinFreeHintsCallback *freeHintsCallback = NULL;
-static char *comlinNoTTY(void);
-static void refreshLineWithCompletion(struct comlinState *ls,
-                                      comlinCompletions *lc,
-                                      int flags);
-static void refreshLineWithFlags(struct comlinState *l, unsigned flags);
+
+static char *
+comlinNoTTY(void);
+
+static void
+refreshLineWithCompletion(struct comlinState *ls,
+                          comlinCompletions *lc,
+                          int flags);
+
+static void
+refreshLineWithFlags(struct comlinState *l, unsigned flags);
 
 static struct termios orig_termios; /* In order to restore at exit.*/
 static int maskmode = 0; // Show "***" instead of input (for passwords)
@@ -126,29 +133,41 @@ enum KEY_ACTION {
     BACKSPACE = 127 // Backspace
 };
 
-static void comlinAtExit(void);
+static void
+comlinAtExit(void);
+
 #define REFRESH_CLEAN (1U << 0U) // Clean the old prompt from the screen
 #define REFRESH_WRITE (1U << 1U) // Rewrite the prompt on the screen.
 #define REFRESH_ALL (REFRESH_CLEAN | REFRESH_WRITE) // Do both.
-static void refreshLine(struct comlinState *l);
+
+static void
+refreshLine(struct comlinState *l);
 
 /* ======================= Low level terminal handling ====================== */
 
-void comlinMaskModeEnable(void) {
+void
+comlinMaskModeEnable(void)
+{
     maskmode = 1;
 }
 
-void comlinMaskModeDisable(void) {
+void
+comlinMaskModeDisable(void)
+{
     maskmode = 0;
 }
 
-void comlinSetMultiLine(int ml) {
+void
+comlinSetMultiLine(int ml)
+{
     mlmode = ml;
 }
 
 /* Return true if the terminal name is in the list of terminals we know are
  * not able to understand basic escape sequences. */
-static int isUnsupportedTerm(void) {
+static int
+isUnsupportedTerm(void)
+{
     char *term = getenv("TERM");
 
     if (term == NULL) {
@@ -165,7 +184,9 @@ static int isUnsupportedTerm(void) {
 }
 
 // Raw mode: 1960 magic shit
-static int enableRawMode(int fd) {
+static int
+enableRawMode(int fd)
+{
     struct termios raw;
 
     if (!isatty(STDIN_FILENO)) {
@@ -208,7 +229,9 @@ fatal:
     return -1;
 }
 
-static void disableRawMode(int fd) {
+static void
+disableRawMode(int fd)
+{
     // Don't even check the return value as it's too late
     if (rawmode && tcsetattr(fd, TCSAFLUSH, &orig_termios) != -1) {
         rawmode = 0;
@@ -218,7 +241,9 @@ static void disableRawMode(int fd) {
 /* Use the ESC [6n escape sequence to query the horizontal cursor position
  * and return it. On error -1 is returned, on success the position of the
  * cursor. */
-static int getCursorPosition(int ifd, int ofd) {
+static int
+getCursorPosition(int ifd, int ofd)
+{
     char buf[32];
     int cols = 0;
     int rows = 0;
@@ -255,7 +280,9 @@ static int getCursorPosition(int ifd, int ofd) {
 
 /* Try to get the number of columns in the current terminal, or assume 80
  * if it fails. */
-static int getColumns(int ifd, int ofd) {
+static int
+getColumns(int ifd, int ofd)
+{
     struct winsize ws;
 
     if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
@@ -293,7 +320,9 @@ failed:
     return 80;
 }
 
-void comlinClearScreen(void) {
+void
+comlinClearScreen(void)
+{
     if (write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7) <= 0) {
         // Nothing to do, just to avoid warning
     }
@@ -301,7 +330,9 @@ void comlinClearScreen(void) {
 
 /* Beep, used for completion when there is nothing to complete or when all
  * the choices were already shown. */
-static void comlinBeep(void) {
+static void
+comlinBeep(void)
+{
     fprintf(stderr, "\x7");
     fflush(stderr);
 }
@@ -309,7 +340,9 @@ static void comlinBeep(void) {
 /* ============================== Completion ================================ */
 
 // Free a list of completion option populated by comlinAddCompletion()
-static void freeCompletions(comlinCompletions *lc) {
+static void
+freeCompletions(comlinCompletions *lc)
+{
     for (size_t i = 0; i < lc->len; ++i) {
         free(lc->cvec[i]);
     }
@@ -324,9 +357,11 @@ static void freeCompletions(comlinCompletions *lc) {
  * function will use the callback to obtain it.
  *
  * Flags are the same as refreshLine*(), that is REFRESH_* macros. */
-static void refreshLineWithCompletion(struct comlinState *ls,
-                                      comlinCompletions *lc,
-                                      int flags) {
+static void
+refreshLineWithCompletion(struct comlinState *ls,
+                          comlinCompletions *lc,
+                          int flags)
+{
     // Obtain the table of completions if the caller didn't provide one
     comlinCompletions ctable = {0, NULL};
     if (lc == NULL) {
@@ -367,7 +402,9 @@ static void refreshLineWithCompletion(struct comlinState *ls,
  * the input was consumed by the completeLine() function to navigate the
  * possible completions, and the caller should read for the next characters
  * from stdin. */
-static char completeLine(struct comlinState *ls, char keypressed) {
+static char
+completeLine(struct comlinState *ls, char keypressed)
+{
     comlinCompletions lc = {0, NULL};
     char c = keypressed;
 
@@ -420,19 +457,27 @@ static char completeLine(struct comlinState *ls, char keypressed) {
     return c; // Return last read character
 }
 
-void comlinSetCompletionCallback(comlinCompletionCallback *fn) {
+void
+comlinSetCompletionCallback(comlinCompletionCallback *fn)
+{
     completionCallback = fn;
 }
 
-void comlinSetHintsCallback(comlinHintsCallback *fn) {
+void
+comlinSetHintsCallback(comlinHintsCallback *fn)
+{
     hintsCallback = fn;
 }
 
-void comlinSetFreeHintsCallback(comlinFreeHintsCallback *fn) {
+void
+comlinSetFreeHintsCallback(comlinFreeHintsCallback *fn)
+{
     freeHintsCallback = fn;
 }
 
-void comlinAddCompletion(comlinCompletions *lc, const char *str) {
+void
+comlinAddCompletion(comlinCompletions *lc, const char *str)
+{
     size_t len = strlen(str);
 
     char *copy = (char *)malloc(len + 1);
@@ -461,12 +506,16 @@ struct abuf {
     int len;
 };
 
-static void abInit(struct abuf *ab) {
+static void
+abInit(struct abuf *ab)
+{
     ab->b = NULL;
     ab->len = 0;
 }
 
-static void abAppend(struct abuf *ab, const char *s, int len) {
+static void
+abAppend(struct abuf *ab, const char *s, int len)
+{
     char *buf = (char *)realloc(ab->b, ab->len + len);
 
     if (buf == NULL) {
@@ -478,13 +527,17 @@ static void abAppend(struct abuf *ab, const char *s, int len) {
     ab->len += len;
 }
 
-static void abFree(struct abuf *ab) {
+static void
+abFree(struct abuf *ab)
+{
     free(ab->b);
 }
 
 /* Helper of refreshSingleLine() and refreshMultiLine() to show hints
  * to the right of the prompt. */
-static void refreshShowHints(struct abuf *ab, struct comlinState *l, int plen) {
+static void
+refreshShowHints(struct abuf *ab, struct comlinState *l, int plen)
+{
     char seq[64];
     if (hintsCallback && plen + l->len < l->cols) {
         int color = -1;
@@ -525,7 +578,9 @@ static void refreshShowHints(struct abuf *ab, struct comlinState *l, int plen) {
  *
  * Flags is REFRESH_* macros. The function can just remove the old
  * prompt, just write it, or both. */
-static void refreshSingleLine(struct comlinState *l, unsigned flags) {
+static void
+refreshSingleLine(struct comlinState *l, unsigned flags)
+{
     char seq[64];
     size_t plen = strlen(l->prompt);
     int fd = l->ofd;
@@ -584,7 +639,9 @@ static void refreshSingleLine(struct comlinState *l, unsigned flags) {
  *
  * Flags is REFRESH_* macros. The function can just remove the old
  * prompt, just write it, or both. */
-static void refreshMultiLine(struct comlinState *l, unsigned flags) {
+static void
+refreshMultiLine(struct comlinState *l, unsigned flags)
+{
     char seq[64];
     int plen = strlen(l->prompt);
     int rows = (plen + l->len + l->cols - 1) / l->cols; // Rows in current buf
@@ -673,7 +730,9 @@ static void refreshMultiLine(struct comlinState *l, unsigned flags) {
 
 /* Calls the two low level functions refreshSingleLine() or
  * refreshMultiLine() according to the selected mode. */
-static void refreshLineWithFlags(struct comlinState *l, unsigned flags) {
+static void
+refreshLineWithFlags(struct comlinState *l, unsigned flags)
+{
     if (mlmode) {
         refreshMultiLine(l, flags);
     } else {
@@ -682,11 +741,15 @@ static void refreshLineWithFlags(struct comlinState *l, unsigned flags) {
 }
 
 // Utility function to avoid specifying REFRESH_ALL all the times
-static void refreshLine(struct comlinState *l) {
+static void
+refreshLine(struct comlinState *l)
+{
     refreshLineWithFlags(l, REFRESH_ALL);
 }
 
-void comlinHide(struct comlinState *l) {
+void
+comlinHide(struct comlinState *l)
+{
     if (mlmode) {
         refreshMultiLine(l, REFRESH_CLEAN);
     } else {
@@ -694,7 +757,9 @@ void comlinHide(struct comlinState *l) {
     }
 }
 
-void comlinShow(struct comlinState *l) {
+void
+comlinShow(struct comlinState *l)
+{
     if (l->in_completion) {
         refreshLineWithCompletion(l, NULL, REFRESH_WRITE);
     } else {
@@ -705,7 +770,9 @@ void comlinShow(struct comlinState *l) {
 /* Insert the character 'c' at cursor current position.
  *
  * On error writing to the terminal -1 is returned, otherwise 0. */
-static int comlinEditInsert(struct comlinState *l, char c) {
+static int
+comlinEditInsert(struct comlinState *l, char c)
+{
     if (l->len < l->buflen) {
         if (l->len == l->pos) {
             l->buf[l->pos] = c;
@@ -735,7 +802,9 @@ static int comlinEditInsert(struct comlinState *l, char c) {
 }
 
 // Move cursor on the left
-static void comlinEditMoveLeft(struct comlinState *l) {
+static void
+comlinEditMoveLeft(struct comlinState *l)
+{
     if (l->pos > 0) {
         --l->pos;
         refreshLine(l);
@@ -743,7 +812,9 @@ static void comlinEditMoveLeft(struct comlinState *l) {
 }
 
 // Move cursor on the right
-static void comlinEditMoveRight(struct comlinState *l) {
+static void
+comlinEditMoveRight(struct comlinState *l)
+{
     if (l->pos != l->len) {
         ++l->pos;
         refreshLine(l);
@@ -751,7 +822,9 @@ static void comlinEditMoveRight(struct comlinState *l) {
 }
 
 // Move cursor to the start of the line
-static void comlinEditMoveHome(struct comlinState *l) {
+static void
+comlinEditMoveHome(struct comlinState *l)
+{
     if (l->pos != 0) {
         l->pos = 0;
         refreshLine(l);
@@ -759,7 +832,9 @@ static void comlinEditMoveHome(struct comlinState *l) {
 }
 
 // Move cursor to the end of the line
-static void comlinEditMoveEnd(struct comlinState *l) {
+static void
+comlinEditMoveEnd(struct comlinState *l)
+{
     if (l->pos != l->len) {
         l->pos = l->len;
         refreshLine(l);
@@ -770,7 +845,9 @@ static void comlinEditMoveEnd(struct comlinState *l) {
  * entry as specified by 'dir'. */
 #define COMLIN_HISTORY_NEXT 0
 #define COMLIN_HISTORY_PREV 1
-static void comlinEditHistoryNext(struct comlinState *l, int dir) {
+static void
+comlinEditHistoryNext(struct comlinState *l, int dir)
+{
     if (history_len > 1) {
         // Update the current history entry before overwriting it with the next
         free(history[history_len - 1 - l->history_index]);
@@ -795,7 +872,9 @@ static void comlinEditHistoryNext(struct comlinState *l, int dir) {
 
 /* Delete the character at the right of the cursor without altering the cursor
  * position. Basically this is what happens with the "Delete" keyboard key. */
-static void comlinEditDelete(struct comlinState *l) {
+static void
+comlinEditDelete(struct comlinState *l)
+{
     if (l->len > 0 && l->pos < l->len) {
         memmove(l->buf + l->pos, l->buf + l->pos + 1, l->len - l->pos - 1);
         --l->len;
@@ -805,7 +884,9 @@ static void comlinEditDelete(struct comlinState *l) {
 }
 
 // Backspace implementation
-static void comlinEditBackspace(struct comlinState *l) {
+static void
+comlinEditBackspace(struct comlinState *l)
+{
     if (l->pos > 0 && l->len > 0) {
         memmove(l->buf + l->pos - 1, l->buf + l->pos, l->len - l->pos);
         --l->pos;
@@ -817,7 +898,9 @@ static void comlinEditBackspace(struct comlinState *l) {
 
 /* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
-static void comlinEditDeletePrevWord(struct comlinState *l) {
+static void
+comlinEditDeletePrevWord(struct comlinState *l)
+{
     size_t old_pos = l->pos;
 
     while (l->pos > 0 && l->buf[l->pos - 1] == ' ') {
@@ -832,12 +915,14 @@ static void comlinEditDeletePrevWord(struct comlinState *l) {
     refreshLine(l);
 }
 
-int comlinEditStart(struct comlinState *l,
-                    int stdin_fd,
-                    int stdout_fd,
-                    char *buf,
-                    size_t buflen,
-                    const char *prompt) {
+int
+comlinEditStart(struct comlinState *l,
+                int stdin_fd,
+                int stdout_fd,
+                char *buf,
+                size_t buflen,
+                const char *prompt)
+{
     /* Populate the state that we pass to functions implementing
      * specific editing functionalities. */
     l->in_completion = 0;
@@ -884,7 +969,9 @@ char *comlinEditMore =
   "called, if it returns comlinEditMore the user is yet editing the line. "
   "See the README file for more information.";
 
-char *comlinEditFeed(struct comlinState *l) {
+char *
+comlinEditFeed(struct comlinState *l)
+{
     /* Not a TTY, pass control to line reading without character
      * count limits. */
     if (!isatty(l->ifd)) {
@@ -1064,7 +1151,9 @@ char *comlinEditFeed(struct comlinState *l) {
     return comlinEditMore;
 }
 
-void comlinEditStop(struct comlinState *l) {
+void
+comlinEditStop(struct comlinState *l)
+{
     if (!isatty(l->ifd)) {
         return;
     }
@@ -1076,11 +1165,13 @@ void comlinEditStop(struct comlinState *l) {
  * In many applications that are not event-driven, we can just call
  * the blocking comlin API, wait for the user to complete the editing
  * and return the buffer. */
-static char *comlinBlockingEdit(int stdin_fd,
-                                int stdout_fd,
-                                char *buf,
-                                size_t buflen,
-                                const char *prompt) {
+static char *
+comlinBlockingEdit(int stdin_fd,
+                   int stdout_fd,
+                   char *buf,
+                   size_t buflen,
+                   const char *prompt)
+{
     struct comlinState l;
 
     // Editing without a buffer is invalid
@@ -1097,7 +1188,9 @@ static char *comlinBlockingEdit(int stdin_fd,
     return res;
 }
 
-void comlinPrintKeyCodes(void) {
+void
+comlinPrintKeyCodes(void)
+{
     char quit[4];
 
     printf("Comlin key codes debugging mode.\n"
@@ -1133,7 +1226,9 @@ void comlinPrintKeyCodes(void) {
  * program using comlin is called in pipe or with a file redirected
  * to its standard input. In this case, we want to be able to return the
  * line regardless of its length (by default we are limited to 4k). */
-static char *comlinNoTTY(void) {
+static char *
+comlinNoTTY(void)
+{
     char *line = NULL;
     size_t len = 0;
     size_t maxlen = 0;
@@ -1168,7 +1263,9 @@ static char *comlinNoTTY(void) {
     }
 }
 
-char *comlin(const char *prompt) {
+char *
+comlin(const char *prompt)
+{
     char buf[COMLIN_MAX_LINE];
 
     if (!isatty(STDIN_FILENO)) {
@@ -1196,7 +1293,9 @@ char *comlin(const char *prompt) {
     return retval;
 }
 
-void comlinFree(void *ptr) {
+void
+comlinFree(void *ptr)
+{
     if (ptr == comlinEditMore) {
         return; // Protect from API misuse.
     }
@@ -1207,7 +1306,9 @@ void comlinFree(void *ptr) {
 
 /* Free the history, but does not reset it. Only used when we have to
  * exit() to avoid memory leaks are reported by valgrind & co. */
-static void freeHistory(void) {
+static void
+freeHistory(void)
+{
     if (history) {
         for (int j = 0; j < history_len; ++j) {
             free(history[j]);
@@ -1217,7 +1318,9 @@ static void freeHistory(void) {
 }
 
 // At exit we'll try to fix the terminal to the initial conditions
-static void comlinAtExit(void) {
+static void
+comlinAtExit(void)
+{
     disableRawMode(STDIN_FILENO);
     freeHistory();
 }
@@ -1228,7 +1331,9 @@ static void comlinAtExit(void) {
  * histories, but will work well for a few hundred of entries.
  *
  * Using a circular buffer is smarter, but a bit more complex to handle. */
-int comlinHistoryAdd(const char *line) {
+int
+comlinHistoryAdd(const char *line)
+{
     if (history_max_len == 0) {
         return 0;
     }
@@ -1263,7 +1368,9 @@ int comlinHistoryAdd(const char *line) {
     return 1;
 }
 
-int comlinHistorySetMaxLen(int len) {
+int
+comlinHistorySetMaxLen(int len)
+{
     if (len < 1) {
         return 0;
     }
@@ -1296,7 +1403,9 @@ int comlinHistorySetMaxLen(int len) {
     return 1;
 }
 
-int comlinHistorySave(const char *filename) {
+int
+comlinHistorySave(const char *filename)
+{
     mode_t old_umask = umask(S_IXUSR | S_IRWXG | S_IRWXO);
     FILE *fp = fopen(filename, "w");
     umask(old_umask);
@@ -1311,7 +1420,9 @@ int comlinHistorySave(const char *filename) {
     return 0;
 }
 
-int comlinHistoryLoad(const char *filename) {
+int
+comlinHistoryLoad(const char *filename)
+{
     FILE *fp = fopen(filename, "r");
     char buf[COMLIN_MAX_LINE];
 
