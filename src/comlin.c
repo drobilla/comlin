@@ -31,7 +31,7 @@
 #define COMLIN_DEFAULT_HISTORY_MAX_LEN 100
 #define COMLIN_MAX_LINE 4096
 
-static const char* unsupported_term[] = {"dumb", "cons25", "emacs", NULL};
+static const char* const unsupported_term[] = {"dumb", "cons25", "emacs", NULL};
 static comlinCompletionCallback* completionCallback = NULL;
 static comlinHintsCallback* hintsCallback = NULL;
 static comlinFreeHintsCallback* freeHintsCallback = NULL;
