@@ -47,14 +47,14 @@ main(int argc, char** argv)
             printf("Multi-line mode enabled.\n");
         } else if (!strcmp(*argv, "--keycodes")) {
             comlinPrintKeyCodes();
-            exit(0);
+            return 0;
         } else if (!strcmp(*argv, "--async")) {
             async = 1;
         } else {
             fprintf(stderr,
                     "Usage: %s [--multiline] [--keycodes] [--async]\n",
                     prgname);
-            exit(1);
+            return 1;
         }
     }
 
@@ -99,8 +99,10 @@ main(int argc, char** argv)
                 int retval = select(ls.ifd + 1, &readfds, NULL, NULL, &tv);
                 if (retval == -1) {
                     perror("select()");
-                    exit(1);
-                } else if (retval) {
+                    return 1;
+                }
+
+                if (retval) {
                     line = comlinEditFeed(&ls);
                     /* A NULL return means: line editing is continuing.
                      * Otherwise the user hit enter or stopped editing
@@ -118,7 +120,7 @@ main(int argc, char** argv)
             }
             comlinEditStop(&ls);
             if (line == NULL) { // Ctrl+D/C
-                exit(0);
+                return 0;
             }
         }
 
