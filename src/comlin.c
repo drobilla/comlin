@@ -195,7 +195,7 @@ getCursorPosition(int ifd, int ofd)
     unsigned int i = 0;
 
     // Report cursor location
-    if (write(ofd, "\x1b[6n", 4) != 4) {
+    if (write(ofd, "\x1B[6n", 4) != 4) {
         return -1;
     }
 
@@ -240,7 +240,7 @@ getColumns(int ifd, int ofd)
         }
 
         // Go to right margin and get position
-        if (write(ofd, "\x1b[999C", 6) != 6) {
+        if (write(ofd, "\x1B[999C", 6) != 6) {
             goto failed;
         }
         int cols = getCursorPosition(ifd, ofd);
@@ -251,7 +251,7 @@ getColumns(int ifd, int ofd)
         // Restore position
         if (cols > start) {
             char seq[32];
-            snprintf(seq, 32, "\x1b[%dD", cols - start);
+            snprintf(seq, 32, "\x1B[%dD", cols - start);
             if (write(ofd, seq, strlen(seq)) == -1) {
                 // Can't recover..
             }
@@ -268,7 +268,7 @@ failed:
 void
 comlinClearScreen(void)
 {
-    if (write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7) <= 0) {
+    if (write(STDOUT_FILENO, "\x1B[H\x1B[2J", 7) <= 0) {
         // Nothing to do, just to avoid warning
     }
 }
@@ -278,7 +278,7 @@ comlinClearScreen(void)
 static void
 comlinBeep(void)
 {
-    fprintf(stderr, "\x7");
+    fprintf(stderr, "\x07");
     fflush(stderr);
 }
 
@@ -563,12 +563,12 @@ refreshSingleLine(struct comlinState* l, unsigned flags)
     }
 
     // Erase to right
-    snprintf(seq, sizeof(seq), "\x1b[0K");
+    snprintf(seq, sizeof(seq), "\x1B[0K");
     abAppend(&ab, seq, strlen(seq));
 
     if (flags & REFRESH_WRITE) {
         // Move cursor to original position
-        snprintf(seq, sizeof(seq), "\r\x1b[%dC", (int)(pos + plen));
+        snprintf(seq, sizeof(seq), "\r\x1B[%dC", (int)(pos + plen));
         abAppend(&ab, seq, strlen(seq));
     }
 
@@ -603,20 +603,20 @@ refreshMultiLine(struct comlinState* l, unsigned flags)
 
     if (flags & REFRESH_CLEAN) {
         if (old_rows - rpos > 0) {
-            snprintf(seq, 64, "\x1b[%dB", old_rows - rpos);
+            snprintf(seq, 64, "\x1B[%dB", old_rows - rpos);
             abAppend(&ab, seq, strlen(seq));
         }
 
         // Now for every row clear it, go up
         for (int j = 0; j < old_rows - 1; ++j) {
-            snprintf(seq, 64, "\r\x1b[0K\x1b[1A");
+            snprintf(seq, 64, "\r\x1B[0K\x1B[1A");
             abAppend(&ab, seq, strlen(seq));
         }
     }
 
     if (flags & REFRESH_ALL) {
         // Clean the top line
-        snprintf(seq, 64, "\r\x1b[0K");
+        snprintf(seq, 64, "\r\x1B[0K");
         abAppend(&ab, seq, strlen(seq));
     }
 
@@ -652,14 +652,14 @@ refreshMultiLine(struct comlinState* l, unsigned flags)
 
         // Go up till we reach the expected position
         if (rows - rpos2 > 0) {
-            snprintf(seq, 64, "\x1b[%dA", rows - rpos2);
+            snprintf(seq, 64, "\x1B[%dA", rows - rpos2);
             abAppend(&ab, seq, strlen(seq));
         }
 
         // Set column
         const int col = (plen + (int)l->pos) % (int)l->cols;
         if (col) {
-            snprintf(seq, 64, "\r\x1b[%dC", col);
+            snprintf(seq, 64, "\r\x1B[%dC", col);
         } else {
             snprintf(seq, 64, "\r");
         }
