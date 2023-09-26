@@ -34,12 +34,20 @@ hints(const char* buf, int* color, int* bold)
 }
 
 static void
+printString(const char* const str)
+{
+    write(1, str, strlen(str));
+}
+
+static void
 printKeyCodesLoop(void)
 {
     char buf[1024];
     char quit[4] = {' ', ' ', ' ', ' '};
 
-    printf("Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
+    fprintf(
+      stderr,
+      "Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
 
     // Start an edit just to set the terminal to raw mode
     ComlinState* const state = comlinNewState(0, 1, buf, sizeof(buf), "");
@@ -62,12 +70,11 @@ printKeyCodesLoop(void)
         }
 
         // Print the key code and continue
-        printf("'%c' %02x (%d) (type quit to exit)\n",
-               isprint(c) ? c : '?',
-               (unsigned)c,
-               (int)c);
-        printf("\r");
-        fflush(stdout);
+        fprintf(stderr,
+                "'%c' %02x (%d) (type quit to exit)\n\n",
+                isprint(c) ? c : '?',
+                (unsigned)c,
+                (int)c);
     }
 
     // Reset terminal mode
@@ -91,16 +98,16 @@ main(int argc, char** argv)
         ++argv;
         if (!strcmp(*argv, "--multiline")) {
             multiline = 1;
-            printf("Multi-line mode enabled.\n");
+            printString("Multi-line mode enabled.\n");
         } else if (!strcmp(*argv, "--keycodes")) {
             printKeyCodesLoop();
             return 0;
         } else if (!strcmp(*argv, "--async")) {
             async = 1;
         } else {
-            fprintf(stderr,
-                    "Usage: %s [--multiline] [--keycodes] [--async]\n",
-                    prgname);
+            printString("Usage: ");
+            printString(prgname);
+            printString(" [--multiline] [--keycodes] [--async]\n");
             return 1;
         }
     }
@@ -164,7 +171,10 @@ main(int argc, char** argv)
                     // Timeout occurred
                     static int counter = 0;
                     comlinHide(state);
-                    printf("Async output %d.\n", counter++);
+                    printString("Async output ");
+                    char decimal[24] = {0};
+                    snprintf(decimal, sizeof(decimal), "%d\n", counter++);
+                    printString(decimal);
                     comlinShow(state);
                 }
             }
@@ -177,7 +187,9 @@ main(int argc, char** argv)
 
         // Do something with the string
         if (line[0] != '\0' && line[0] != '/') {
-            printf("echo: '%s'\n", line);
+            printString("echo: '");
+            printString(line);
+            printString("'\n");
             comlinHistoryAdd(state, line);           // Add to the history
             comlinHistorySave(state, "history.txt"); // Save history to disk
         } else if (!strncmp(line, "/historylen", 11)) {
@@ -189,7 +201,9 @@ main(int argc, char** argv)
         } else if (!strncmp(line, "/unmask", 7)) {
             comlinMaskModeDisable(state);
         } else if (line[0] == '/') {
-            printf("Unreconized command: %s\n", line);
+            printString("Unreconized command: ");
+            printString(line);
+            printString("\n");
         }
         free(line);
     }

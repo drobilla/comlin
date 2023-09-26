@@ -280,10 +280,11 @@ comlinClearScreen(ComlinState* const state)
 /* Beep, used for completion when there is nothing to complete or when all
  * the choices were already shown. */
 static void
-comlinBeep(void)
+comlinBeep(ComlinState* const state)
 {
-    fprintf(stderr, "\x07");
-    fflush(stderr);
+    if (write(state->ofd, "\x07", 1) != 1) {
+        // Failed to write ASCII BEL, oh well
+    }
 }
 
 /* ============================== Completion ================================ */
@@ -359,7 +360,7 @@ completeLine(ComlinState* const ls, char keypressed)
 
     ls->completionCallback(ls->buf, &lc);
     if (lc.len == 0) {
-        comlinBeep();
+        comlinBeep(ls);
         ls->in_completion = 0;
     } else {
         switch (c) {
@@ -370,7 +371,7 @@ completeLine(ComlinState* const ls, char keypressed)
             } else {
                 ls->completion_idx = (ls->completion_idx + 1) % (lc.len + 1);
                 if (ls->completion_idx == lc.len) {
-                    comlinBeep();
+                    comlinBeep(ls);
                 }
             }
             c = 0;
@@ -1194,8 +1195,10 @@ comlinReadLine(ComlinState* const state, const char* const prompt)
     }
 
     if (isUnsupportedTerm()) {
-        printf("%s", prompt);
-        fflush(stdout);
+        const size_t prompt_len = strlen(prompt);
+        if (write(state->ofd, prompt, prompt_len) != (ssize_t)prompt_len) {
+            return NULL;
+        }
         if (fgets(buf, COMLIN_MAX_LINE, stdin) == NULL) {
             return NULL;
         }
