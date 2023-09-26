@@ -359,7 +359,7 @@ completeLine(struct comlinState* ls, char keypressed)
         ls->in_completion = 0;
     } else {
         switch (c) {
-        case 9: // Tab
+        case TAB: // Tab
             if (ls->in_completion == 0) {
                 ls->in_completion = 1;
                 ls->completion_idx = 0;
@@ -371,7 +371,7 @@ completeLine(struct comlinState* ls, char keypressed)
             }
             c = 0;
             break;
-        case 27: // Escape
+        case ESC: // Escape
             // Re-show original buffer
             if (ls->completion_idx < lc.len) {
                 refreshLine(ls);
@@ -934,7 +934,7 @@ comlinEditFeed(struct comlinState* l)
     /* Only autocomplete when the callback is set. It returns < 0 when
      * there was an error reading from fd. Otherwise it will return the
      * character that should be handled next. */
-    if ((l->in_completion || c == 9) && completionCallback != NULL) {
+    if ((l->in_completion || c == TAB) && completionCallback != NULL) {
         c = completeLine(l, c);
         // Return on errors
         if (c < 0) {
@@ -966,7 +966,7 @@ comlinEditFeed(struct comlinState* l)
         errno = EAGAIN;
         return NULL;
     case BACKSPACE: // Backspace
-    case 8:         // Ctrl-h
+    case CTRL_H:    // Ctrl-h
         comlinEditBackspace(l);
         break;
     case CTRL_D: /* ctrl-d, remove char at right of cursor, or if the
