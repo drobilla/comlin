@@ -12,4 +12,6 @@ IndentPPDirectives: AfterHash
 IndentWidth: 4
 KeepEmptyLinesAtTheStartOfBlocks: false
 PointerAlignment: Right
+AttributeMacros:
+  - COMLIN_API
 ...
