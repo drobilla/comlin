@@ -2,7 +2,7 @@
 // Copyright 2010-2013 Pieter Noordhuis <pcnoordhuis@gmail.com>
 // SPDX-License-Identifier: BSD-2-Clause
 
-#include "linenoise/linenoise.h"
+#include "comlin/comlin.h"
 
 #include <sys/select.h>
 
@@ -11,10 +11,10 @@
 #include <string.h>
 #include <strings.h>
 
-static void completion(const char *buf, linenoiseCompletions *lc) {
+static void completion(const char *buf, comlinCompletions *lc) {
     if (buf[0] == 'h') {
-        linenoiseAddCompletion(lc, "hello");
-        linenoiseAddCompletion(lc, "hello there");
+        comlinAddCompletion(lc, "hello");
+        comlinAddCompletion(lc, "hello there");
     }
 }
 
@@ -37,10 +37,10 @@ int main(int argc, char **argv) {
         --argc;
         ++argv;
         if (!strcmp(*argv, "--multiline")) {
-            linenoiseSetMultiLine(1);
+            comlinSetMultiLine(1);
             printf("Multi-line mode enabled.\n");
         } else if (!strcmp(*argv, "--keycodes")) {
-            linenoisePrintKeyCodes();
+            comlinPrintKeyCodes();
             exit(0);
         } else if (!strcmp(*argv, "--async")) {
             async = 1;
@@ -54,23 +54,23 @@ int main(int argc, char **argv) {
 
     /* Set the completion callback. This will be called every time the
      * user uses the <tab> key. */
-    linenoiseSetCompletionCallback(completion);
-    linenoiseSetHintsCallback(hints);
+    comlinSetCompletionCallback(completion);
+    comlinSetHintsCallback(hints);
 
     /* Load history from file. The history file is just a plain text file
      * where entries are separated by newlines. */
-    linenoiseHistoryLoad("history.txt"); // Load the history at startup
+    comlinHistoryLoad("history.txt"); // Load the history at startup
 
-    /* Now this is the main loop of the typical linenoise-based application.
-     * The call to linenoise() will block as long as the user types something
+    /* Now this is the main loop of the typical comlin-based application.
+     * The call to comlin() will block as long as the user types something
      * and presses enter.
      *
      * The typed string is returned as a malloc() allocated string by
-     * linenoise, so the user needs to free() it. */
+     * comlin, so the user needs to free() it. */
 
     while (1) {
         if (!async) {
-            line = linenoise("hello> ");
+            line = comlin("hello> ");
             if (line == NULL) {
                 break;
             }
@@ -78,9 +78,9 @@ int main(int argc, char **argv) {
             /* Asynchronous mode using the multiplexing API: wait for
              * data on stdin, and simulate async data coming from some source
              * using the select(2) timeout. */
-            struct linenoiseState ls;
+            struct comlinState ls;
             char buf[1024];
-            linenoiseEditStart(&ls, -1, -1, buf, sizeof(buf), "hello> ");
+            comlinEditStart(&ls, -1, -1, buf, sizeof(buf), "hello> ");
             while (1) {
                 fd_set readfds;
                 struct timeval tv;
@@ -95,22 +95,22 @@ int main(int argc, char **argv) {
                     perror("select()");
                     exit(1);
                 } else if (retval) {
-                    line = linenoiseEditFeed(&ls);
+                    line = comlinEditFeed(&ls);
                     /* A NULL return means: line editing is continuing.
                      * Otherwise the user hit enter or stopped editing
                      * (CTRL+C/D). */
-                    if (line != linenoiseEditMore) {
+                    if (line != comlinEditMore) {
                         break;
                     }
                 } else {
                     // Timeout occurred
                     static int counter = 0;
-                    linenoiseHide(&ls);
+                    comlinHide(&ls);
                     printf("Async output %d.\n", counter++);
-                    linenoiseShow(&ls);
+                    comlinShow(&ls);
                 }
             }
-            linenoiseEditStop(&ls);
+            comlinEditStop(&ls);
             if (line == NULL) { // Ctrl+D/C
                 exit(0);
             }
@@ -119,16 +119,16 @@ int main(int argc, char **argv) {
         // Do something with the string
         if (line[0] != '\0' && line[0] != '/') {
             printf("echo: '%s'\n", line);
-            linenoiseHistoryAdd(line);           // Add to the history
-            linenoiseHistorySave("history.txt"); // Save the history on disk
+            comlinHistoryAdd(line);           // Add to the history
+            comlinHistorySave("history.txt"); // Save the history on disk
         } else if (!strncmp(line, "/historylen", 11)) {
             // The "/historylen" command will change the history len
             int len = atoi(line + 11);
-            linenoiseHistorySetMaxLen(len);
+            comlinHistorySetMaxLen(len);
         } else if (!strncmp(line, "/mask", 5)) {
-            linenoiseMaskModeEnable();
+            comlinMaskModeEnable();
         } else if (!strncmp(line, "/unmask", 7)) {
-            linenoiseMaskModeDisable();
+            comlinMaskModeDisable();
         } else if (line[0] == '/') {
             printf("Unreconized command: %s\n", line);
         }

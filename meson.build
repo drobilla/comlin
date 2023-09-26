@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 project(
-  'linenoise',
+  'comlin',
   ['c'],
   default_options: [
     'b_ndebug=if-release',
@@ -14,11 +14,11 @@ project(
   version: '0.0.1',
 )
 
-linenoise_src_root = meson.current_source_dir()
-linenoise_build_root = meson.current_build_dir()
+comlin_src_root = meson.current_source_dir()
+comlin_build_root = meson.current_build_dir()
 major_version = meson.project_version().split('.')[0]
 version_suffix = '-@0@'.format(major_version)
-versioned_name = 'linenoise' + version_suffix
+versioned_name = 'comlin' + version_suffix
 
 #######################
 # Compilers and Flags #
@@ -80,20 +80,20 @@ endif
 ###########
 
 include_dirs = include_directories(['include'])
-c_headers = files('include/linenoise/linenoise.h')
-sources = files('src/linenoise.c')
+c_headers = files('include/comlin/comlin.h')
+sources = files('src/comlin.c')
 
 # Set appropriate arguments for building against the library type
 extra_c_args = ['-D_POSIX_C_SOURCE=200809L']
 if get_option('default_library') == 'static'
-  extra_c_args = ['-DLINENOISE_STATIC']
+  extra_c_args = ['-DCOMLIN_STATIC']
 endif
 
 # Build shared and/or static library
-liblinenoise = library(
+libcomlin = library(
   versioned_name,
   sources,
-  c_args: c_suppressions + extra_c_args + ['-DLINENOISE_INTERNAL'],
+  c_args: c_suppressions + extra_c_args + ['-DCOMLIN_INTERNAL'],
   # gnu_symbol_visibility: 'hidden',
   include_directories: include_dirs,
   install: true,
@@ -102,28 +102,28 @@ liblinenoise = library(
 )
 
 # Declare dependency for internal meson dependants
-linenoise_dep = declare_dependency(
+comlin_dep = declare_dependency(
   compile_args: extra_c_args,
   include_directories: include_dirs,
-  link_with: liblinenoise,
+  link_with: libcomlin,
 )
 
 # Generage pkg-config file for external dependants
 pkg.generate(
-  liblinenoise,
+  libcomlin,
   description: 'A minimal command line editing library',
   extra_cflags: extra_c_args,
   filebase: versioned_name,
-  name: 'Linenoise',
+  name: 'Comlin',
   subdirs: [versioned_name],
   version: meson.project_version(),
 )
 
 # Override pkg-config dependency for internal meson dependants
-meson.override_dependency(versioned_name, linenoise_dep)
+meson.override_dependency(versioned_name, comlin_dep)
 
 # Install header to a versioned include directory
-install_headers(c_headers, subdir: versioned_name / 'linenoise')
+install_headers(c_headers, subdir: versioned_name / 'comlin')
 
 #########
 # Tests #
@@ -136,7 +136,7 @@ if not meson.is_subproject()
     test(
       'REUSE',
       reuse,
-      args: ['--root', linenoise_src_root, 'lint'],
+      args: ['--root', comlin_src_root, 'lint'],
       suite: 'data',
     )
   endif

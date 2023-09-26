@@ -1,12 +1,8 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: linenoise
+Upstream-Name: comlin
 Upstream-Contact: David Robillard <d@drobilla.net>
-Source: https://github.com/drobilla/linenoise
+Source: https://github.com/drobilla/comlin
 
-Files: .clant.json .includes.imp
+Files: .clant.json .includes.imp README.md
 Copyright: 2023 David Robillard <d@drobilla.net>
-License: BSD-2-Clause
-
-Files:  README.md
-Copyright: 2010-2023 Salvatore Sanfilippo <antirez@gmail.com>
 License: BSD-2-Clause

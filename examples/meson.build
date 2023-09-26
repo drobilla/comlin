@@ -5,7 +5,7 @@ example = executable(
   'example',
   files('example.c'),
   c_args: c_suppressions,
-  dependencies: linenoise_dep,
+  dependencies: comlin_dep,
   include_directories: include_dirs,
 )
 

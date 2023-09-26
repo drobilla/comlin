@@ -1,7 +1,7 @@
 # Copyright 2021-2023 David Robillard <d@drobilla.net>
 # SPDX-License-Identifier: BSD-2-Clause
 
-PROJECT_NAME           = Linenoise
+PROJECT_NAME           = Comlin
 PROJECT_BRIEF          = "A minimal C library that implements a command line with history for VT-100 compatible terminals."
 
 QUIET                  = YES
@@ -25,9 +25,9 @@ SHOW_FILES             = NO
 EXPAND_ONLY_PREDEF     = YES
 MACRO_EXPANSION        = YES
 SKIP_FUNCTION_MACROS   = NO
-PREDEFINED             = LINENOISE_API=
+PREDEFINED             = COMLIN_API=
 
-STRIP_FROM_PATH        = @LINENOISE_SRCDIR@
-INPUT                  = @LINENOISE_SRCDIR@/include/linenoise/linenoise.h
+STRIP_FROM_PATH        = @COMLIN_SRCDIR@
+INPUT                  = @COMLIN_SRCDIR@/include/comlin/comlin.h
 
 OUTPUT_DIRECTORY       = @DOX_OUTPUT@
