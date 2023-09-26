@@ -12,7 +12,7 @@
 #include <strings.h>
 
 static void
-completion(const char *buf, comlinCompletions *lc)
+completion(const char* buf, comlinCompletions* lc)
 {
     if (buf[0] == 'h') {
         comlinAddCompletion(lc, "hello");
@@ -20,8 +20,8 @@ completion(const char *buf, comlinCompletions *lc)
     }
 }
 
-static char *
-hints(const char *buf, int *color, int *bold)
+static char*
+hints(const char* buf, int* color, int* bold)
 {
     if (!strcasecmp(buf, "hello")) {
         *color = 35;
@@ -32,10 +32,10 @@ hints(const char *buf, int *color, int *bold)
 }
 
 int
-main(int argc, char **argv)
+main(int argc, char** argv)
 {
-    char *line = NULL;
-    char *prgname = argv[0];
+    char* line = NULL;
+    char* prgname = argv[0];
     int async = 0;
 
     // Parse options, with --multiline we enable multi line editing

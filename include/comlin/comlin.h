@@ -41,9 +41,9 @@ struct comlinState {
 
     int ifd;            ///< Terminal stdin file descriptor
     int ofd;            ///< Terminal stdout file descriptor
-    char *buf;          ///< Edited line buffer
+    char* buf;          ///< Edited line buffer
     size_t buflen;      ///< Edited line buffer size
-    const char *prompt; ///< Prompt to display
+    const char* prompt; ///< Prompt to display
     size_t plen;        ///< Prompt length
     size_t pos;         ///< Current cursor position
     size_t oldpos;      ///< Previous refresh cursor position
@@ -59,7 +59,7 @@ struct comlinState {
 */
 
 /// Sentinel return string for when the user is still editing the line
-COMLIN_API extern char *comlinEditMore;
+COMLIN_API extern char* comlinEditMore;
 
 /** Start a non-blocking command line read.
  *
@@ -84,12 +84,12 @@ COMLIN_API extern char *comlinEditMore;
  * @return 0 on success, or -1 if writing to standard output fails.
  */
 COMLIN_API int
-comlinEditStart(struct comlinState *l,
+comlinEditStart(struct comlinState* l,
                 int stdin_fd,
                 int stdout_fd,
-                char *buf,
+                char* buf,
                 size_t buflen,
-                const char *prompt);
+                const char* prompt);
 
 /** This function is part of the multiplexed API of comlin, see the top
  * comment on #comlinEditStart for more information.  Call this function
@@ -106,8 +106,8 @@ comlinEditStart(struct comlinState *l,
  * user pressed Ctrl-C, `ENOENT` if the user pressed Ctrl-D, or some other
  * error number on an I/O error.
  */
-COMLIN_API char *
-comlinEditFeed(struct comlinState *l);
+COMLIN_API char*
+comlinEditFeed(struct comlinState* l);
 
 /** Finish editing a line.
  *
@@ -116,15 +116,15 @@ comlinEditFeed(struct comlinState *l);
  * restore the terminal to normal mode.
  */
 COMLIN_API void
-comlinEditStop(struct comlinState *l);
+comlinEditStop(struct comlinState* l);
 
 /// Hide the current line, when using the multiplexing API
 COMLIN_API void
-comlinHide(struct comlinState *l);
+comlinHide(struct comlinState* l);
 
 /// Show the current line, when using the multiplexing API
 COMLIN_API void
-comlinShow(struct comlinState *l);
+comlinShow(struct comlinState* l);
 
 /**
    @}
@@ -141,12 +141,12 @@ comlinShow(struct comlinState *l);
  * @return A newly allocated command string that must be freed with
  * #comlinFree.
  */
-COMLIN_API char *
-comlin(const char *prompt);
+COMLIN_API char*
+comlin(const char* prompt);
 
 /// Free a command string returned by comlin()
 COMLIN_API void
-comlinFree(void *ptr);
+comlinFree(void* ptr);
 
 /**
    @}
@@ -161,29 +161,29 @@ comlinFree(void *ptr);
  */
 typedef struct comlinCompletions {
     size_t len;  ///< Number of elements in cvec
-    char **cvec; ///< Array of string pointers
+    char** cvec; ///< Array of string pointers
 } comlinCompletions;
 
 /// Completion callback
-typedef void(comlinCompletionCallback)(const char *, comlinCompletions *);
+typedef void(comlinCompletionCallback)(const char*, comlinCompletions*);
 
 /// Prompt hint callback
-typedef char *(comlinHintsCallback)(const char *, int *color, int *bold);
+typedef char*(comlinHintsCallback)(const char*, int* color, int* bold);
 
 /// Function to free a hint returned by a #comlinHintsCallback
-typedef void(comlinFreeHintsCallback)(void *);
+typedef void(comlinFreeHintsCallback)(void*);
 
 /// Register a callback function to be called for tab-completion
 COMLIN_API void
-comlinSetCompletionCallback(comlinCompletionCallback *fn);
+comlinSetCompletionCallback(comlinCompletionCallback* fn);
 
 /// Register a callback function to show hints to the right of the prompt
 COMLIN_API void
-comlinSetHintsCallback(comlinHintsCallback *fn);
+comlinSetHintsCallback(comlinHintsCallback* fn);
 
 /// Register a function to free the hints returned by the hints callback
 COMLIN_API void
-comlinSetFreeHintsCallback(comlinFreeHintsCallback *fn);
+comlinSetFreeHintsCallback(comlinFreeHintsCallback* fn);
 
 /** Add completion options for the current input string.
  *
@@ -191,7 +191,7 @@ comlinSetFreeHintsCallback(comlinFreeHintsCallback *fn);
  * input string when the user pressed `TAB`.
  */
 COMLIN_API void
-comlinAddCompletion(comlinCompletions *lc, const char *str);
+comlinAddCompletion(comlinCompletions* lc, const char* str);
 
 /**
    @}
@@ -205,7 +205,7 @@ comlinAddCompletion(comlinCompletions *lc, const char *str);
  * saved explicitly with #comlinHistorySave.
  */
 COMLIN_API int
-comlinHistoryAdd(const char *line);
+comlinHistoryAdd(const char* line);
 
 /** Set the maximum length for the history.
  *
@@ -221,14 +221,14 @@ comlinHistorySetMaxLen(int len);
  * @return 0 on success, otherwise -1.
  */
 COMLIN_API int
-comlinHistorySave(const char *filename);
+comlinHistorySave(const char* filename);
 
 /** Load the history from the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
 COMLIN_API int
-comlinHistoryLoad(const char *filename);
+comlinHistoryLoad(const char* filename);
 
 /**
    @}
