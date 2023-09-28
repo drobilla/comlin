@@ -853,8 +853,8 @@ comlinNewState(const int stdin_fd,
         return NULL;
     }
 
-    l->ifd = stdin_fd != -1 ? stdin_fd : STDIN_FILENO;
-    l->ofd = stdout_fd != -1 ? stdout_fd : STDOUT_FILENO;
+    l->ifd = stdin_fd;
+    l->ofd = stdout_fd;
     l->history_max_len = COMLIN_DEFAULT_HISTORY_MAX_LEN;
     l->buf = buf;
     l->buflen = buflen;
