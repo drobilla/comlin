@@ -24,7 +24,6 @@
 #include <unistd.h>
 
 #include <assert.h>
-#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +31,16 @@
 
 #define COMLIN_DEFAULT_HISTORY_MAX_LEN 100
 #define COMLIN_MAX_LINE 4096
+
+/* We define a very simple "append buffer" structure, that is an heap
+ * allocated string where we can append to. This is useful in order to
+ * write all the escape sequences in a buffer and flush them to the standard
+ * output in a single call, to avoid flickering effects. */
+struct abuf {
+    char* data;    ///< Pointer to string buffer
+    size_t length; ///< Length of string (not greater than size)
+    size_t size;   ///< Size of data
+};
 
 struct ComlinStateImpl {
     // Completion
@@ -44,6 +53,7 @@ struct ComlinStateImpl {
     bool maskmode; ///< Show asterisks instead of input (for passwords)
     bool rawmode;  ///< Terminal is currently in raw mode
     bool mlmode;   ///< Multi-line mode (default is single line)
+    bool dumb;     ///< True if terminal is unsupported (no features)
 
     // History
     size_t history_max_len; ///< Maximum number of history entries to keep
@@ -52,12 +62,10 @@ struct ComlinStateImpl {
 
     // Line editing state
     struct termios cooked; ///< Terminal settings before raw mode
-    char* buf;             ///< Editing line buffer
-    size_t buflen;         ///< Editing line buffer size
+    struct abuf buf;       ///< Editing line buffer
     const char* prompt;    ///< Prompt to display
     size_t plen;           ///< Prompt length
     size_t pos;            ///< Current cursor position
-    size_t len;            ///< Current edited line length
     size_t history_index;  ///< The history index we're currently editing
     bool in_completion;    ///< Currently doing a completion
     size_t completion_idx; ///< Index of next completion to propose
@@ -69,8 +77,8 @@ struct ComlinStateImpl {
 
 static const char* const unsupported_term[] = {"dumb", "cons25", "emacs", NULL};
 
-static char*
-comlinNoTTY(void);
+static void
+abAppend(struct abuf* ab, const char* s, size_t len);
 
 static void
 refreshLineWithCompletion(ComlinState* ls,
@@ -134,45 +142,44 @@ comlinSetMultiLine(ComlinState* const comlin, const bool ml)
 static bool
 isUnsupportedTerm(void)
 {
-    char* term = getenv("TERM");
-
-    if (term == NULL) {
-        return false;
-    }
-
-    for (int j = 0; unsupported_term[j]; ++j) {
-        if (!strcasecmp(term, unsupported_term[j])) {
-            return true;
+    const char* const term = getenv("TERM");
+    if (term) {
+        for (unsigned i = 0U; unsupported_term[i]; ++i) {
+            if (!strcasecmp(term, unsupported_term[i])) {
+                return true;
+            }
         }
     }
 
     return false;
 }
 
-static int
+static ComlinStatus
 write_string(const int fd, const char* const buf, const size_t count)
 {
     size_t offset = 0U;
-    size_t remaining = count;
-    while (remaining > 0) {
-        const ssize_t r = write(fd, buf + offset, remaining);
+    while (offset < count) {
+        const ssize_t r = write(fd, buf + offset, count - offset);
         if (r < 0) {
-            return -1;
+            return COMLIN_BAD_WRITE;
         }
 
-        remaining -= (size_t)r;
         offset += (size_t)r;
     }
 
-    return 0;
+    return COMLIN_SUCCESS;
 }
 
 /// Set terminal to raw input mode and preserve the original settings
 static int
 enableRawMode(ComlinState* const state)
 {
+    if (!isatty(state->ifd)) {
+        return 0;
+    }
+
     // Save original terminal attributes
-    if (isatty(state->ifd) && tcgetattr(state->ifd, &state->cooked) == -1) {
+    if (tcgetattr(state->ifd, &state->cooked) == -1) {
         return -1;
     }
 
@@ -197,14 +204,18 @@ enableRawMode(ComlinState* const state)
     return rc;
 }
 
-static void
+static ComlinStatus
 disableRawMode(ComlinState* const state)
 {
-    // Don't even check the return value as it's too late
-    if (state->rawmode &&
-        tcsetattr(state->ifd, TCSAFLUSH, &state->cooked) != -1) {
+    if (state->rawmode) {
+        if (tcsetattr(state->ifd, TCSAFLUSH, &state->cooked) == -1) {
+            return COMLIN_BAD_TERMINAL;
+        }
+
         state->rawmode = false;
     }
+
+    return COMLIN_SUCCESS;
 }
 
 /* Use the ESC [6n escape sequence to query the horizontal cursor position
@@ -252,9 +263,9 @@ getCursorPosition(int ifd, int ofd)
 static int
 getColumns(int ifd, int ofd)
 {
-    struct winsize ws;
+    struct winsize ws = {24U, 80U, 640U, 480U};
 
-    if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+    if (isatty(ofd) && (ioctl(ofd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)) {
         // ioctl() failed. Try to query the terminal itself
 
         // Get the initial position so we can restore it later
@@ -335,19 +346,19 @@ refreshLineWithCompletion(ComlinState* const ls,
     // Obtain the table of completions if the caller didn't provide one
     ComlinCompletions ctable = {0, NULL};
     if (lc == NULL) {
-        ls->completionCallback(ls->buf, &ctable);
+        ls->completionCallback(ls->buf.data, &ctable);
         lc = &ctable;
     }
 
     // Show the edited line with completion if possible, or just refresh
     if (ls->completion_idx < lc->len) {
-        ComlinState saved = *ls;
-        ls->len = ls->pos = strlen(lc->cvec[ls->completion_idx]);
-        ls->buf = lc->cvec[ls->completion_idx];
+        size_t const saved_pos = ls->pos;
+        struct abuf const saved_buf = ls->buf;
+        ls->buf.data = lc->cvec[ls->completion_idx];
+        ls->pos = ls->buf.length = strlen(ls->buf.data);
         refreshLineWithFlags(ls, flags);
-        ls->len = saved.len;
-        ls->pos = saved.pos;
-        ls->buf = saved.buf;
+        ls->buf = saved_buf;
+        ls->pos = saved_pos;
     } else {
         refreshLineWithFlags(ls, flags);
     }
@@ -378,7 +389,10 @@ completeLine(ComlinState* const ls, char keypressed)
     ComlinCompletions lc = {0, NULL};
     char c = keypressed;
 
-    ls->completionCallback(ls->buf, &lc);
+    if (ls->buf.length) {
+        ls->completionCallback(ls->buf.data, &lc);
+    }
+
     if (lc.len == 0) {
         comlinBeep(ls);
         ls->in_completion = false;
@@ -407,10 +421,9 @@ completeLine(ComlinState* const ls, char keypressed)
         default:
             // Update buffer and return
             if (ls->completion_idx < lc.len) {
-                const int nwritten = snprintf(
-                  ls->buf, ls->buflen, "%s", lc.cvec[ls->completion_idx]);
-                assert(nwritten > 0);
-                ls->len = ls->pos = (size_t)nwritten;
+                ls->pos = strlen(lc.cvec[ls->completion_idx]);
+                ls->buf.length = 0U;
+                abAppend(&ls->buf, lc.cvec[ls->completion_idx], ls->pos);
             }
             ls->in_completion = false;
             break;
@@ -457,19 +470,11 @@ comlinAddCompletion(ComlinCompletions* lc, const char* str)
 
 /* =========================== Line editing ================================= */
 
-/* We define a very simple "append buffer" structure, that is an heap
- * allocated string where we can append to. This is useful in order to
- * write all the escape sequences in a buffer and flush them to the standard
- * output in a single call, to avoid flickering effects. */
-struct abuf {
-    char* data;    ///< Pointer to string buffer
-    size_t length; ///< Length of string (not greater than size)
-    size_t size;   ///< Size of data
-};
-
 static void
 abAppend(struct abuf* const ab, const char* const s, const size_t len)
 {
+    assert(s);
+
     const size_t new_length = ab->length + len;
     const size_t needed_size = new_length + 1U;
     if (needed_size > ab->size) {
@@ -482,6 +487,7 @@ abAppend(struct abuf* const ab, const char* const s, const size_t len)
         ab->size = needed_size;
     }
 
+    assert(ab->data);
     memcpy(ab->data + ab->length, s, len);
     ab->data[new_length] = '\0';
     ab->length = new_length;
@@ -506,8 +512,8 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
     char seq[64];
     size_t plen = strlen(l->prompt);
     int fd = l->ofd;
-    char* buf = l->buf;
-    size_t len = l->len;
+    char* buf = l->buf.data;
+    size_t len = l->buf.length;
     size_t pos = l->pos;
 
     while ((plen + pos) >= l->cols) {
@@ -524,7 +530,7 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
     snprintf(seq, sizeof(seq), "\r");
     abAppend(&ab, seq, strlen(seq));
 
-    if (flags & REFRESH_WRITE) {
+    if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Write the prompt and the current buffer content
         abAppend(&ab, l->prompt, strlen(l->prompt));
         if (l->maskmode) {
@@ -540,7 +546,7 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
     snprintf(seq, sizeof(seq), "\x1B[0K");
     abAppend(&ab, seq, strlen(seq));
 
-    if (flags & REFRESH_WRITE) {
+    if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Move cursor to original position
         snprintf(seq, sizeof(seq), "\r\x1B[%dC", (int)(pos + plen));
         abAppend(&ab, seq, strlen(seq));
@@ -566,7 +572,7 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
     char seq[64];
     const size_t plen = strlen(l->prompt);
     size_t rows =
-      (plen + l->len + l->cols - 1U) / l->cols;           // Rows in current buf
+      (plen + l->buf.length + l->cols - 1U) / l->cols;    // Rows in current buf
     size_t rpos = (plen + l->oldpos + l->cols) / l->cols; // Cursor relative row
     size_t old_rows = l->oldrows;
     int fd = l->ofd;
@@ -601,16 +607,17 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
         // Write the prompt and the current buffer content
         abAppend(&ab, l->prompt, strlen(l->prompt));
         if (l->maskmode) {
-            for (unsigned i = 0; i < l->len; ++i) {
+            for (unsigned i = 0U; i < l->buf.length; ++i) {
                 abAppend(&ab, "*", 1);
             }
         } else {
-            abAppend(&ab, l->buf, l->len);
+            abAppend(&ab, l->buf.data, l->buf.length);
         }
 
         /* If we are at the very end of the screen with our prompt, we need to
          * emit a newline and move the prompt to the first column. */
-        if (l->pos && l->pos == l->len && (l->pos + plen) % l->cols == 0) {
+        if (l->pos && l->pos == l->buf.length &&
+            (l->pos + plen) % l->cols == 0) {
             abAppend(&ab, "\n", 1);
             snprintf(seq, 64, "\r");
             abAppend(&ab, seq, strlen(seq));
@@ -681,7 +688,7 @@ comlinHide(ComlinState* const l)
 void
 comlinShow(ComlinState* const l)
 {
-    if (l->in_completion) {
+    if (l->in_completion && l->buf.length) {
         refreshLineWithCompletion(l, NULL, REFRESH_WRITE);
     } else {
         refreshLineWithFlags(l, REFRESH_WRITE);
@@ -691,35 +698,34 @@ comlinShow(ComlinState* const l)
 /* Insert the character 'c' at cursor current position.
  *
  * On error writing to the terminal -1 is returned, otherwise 0. */
-static int
+static ComlinStatus
 comlinEditInsert(ComlinState* const l, char c)
 {
-    if (l->len < l->buflen) {
-        if (l->len == l->pos) {
-            l->buf[l->pos] = c;
-            ++l->pos;
-            ++l->len;
-            l->buf[l->len] = '\0';
-            if (!l->mlmode && l->plen + l->len < l->cols) {
-                /* Avoid a full update of the line in the
-                 * trivial case. */
-                char d = (char)(l->maskmode ? '*' : c);
-                if (write(l->ofd, &d, 1) != 1) {
-                    return -1;
-                }
-            } else {
-                refreshLine(l);
-            }
-        } else {
-            memmove(l->buf + l->pos + 1, l->buf + l->pos, l->len - l->pos);
-            l->buf[l->pos] = c;
-            ++l->len;
-            ++l->pos;
-            l->buf[l->len] = '\0';
-            refreshLine(l);
+    if (l->buf.length == l->pos) {
+        // Insert at end of line
+        abAppend(&l->buf, &c, 1U);
+        ++l->pos;
+        if (!l->mlmode && l->plen + l->buf.length < l->cols) {
+            // Avoid a full update of the line in the trivial case
+            char d = (char)(l->maskmode ? '*' : c);
+            return write(l->ofd, &d, 1) == 1 ? COMLIN_READING
+                                             : COMLIN_BAD_WRITE;
         }
+
+        refreshLine(l);
+
+    } else {
+        // Insert in middle of line
+        abAppend(&l->buf, " ", 1U); // Allocate space for one extra character
+        memmove(l->buf.data + l->pos + 1,
+                l->buf.data + l->pos,
+                l->buf.length - l->pos);
+        l->buf.data[l->pos] = c;
+        ++l->pos;
+        refreshLine(l);
     }
-    return 0;
+
+    return COMLIN_READING;
 }
 
 // Move cursor on the left
@@ -736,7 +742,7 @@ comlinEditMoveLeft(ComlinState* const l)
 static void
 comlinEditMoveRight(ComlinState* const l)
 {
-    if (l->pos != l->len) {
+    if (l->pos != l->buf.length) {
         ++l->pos;
         refreshLine(l);
     }
@@ -756,8 +762,8 @@ comlinEditMoveHome(ComlinState* const l)
 static void
 comlinEditMoveEnd(ComlinState* const l)
 {
-    if (l->pos != l->len) {
-        l->pos = l->len;
+    if (l->pos != l->buf.length) {
+        l->pos = l->buf.length;
         refreshLine(l);
     }
 }
@@ -772,7 +778,8 @@ comlinEditHistoryNext(ComlinState* const l, int dir)
     if (l->history_len > 1U) {
         // Update the current history entry before overwriting it with the next
         free(l->history[l->history_len - 1U - l->history_index]);
-        l->history[l->history_len - 1U - l->history_index] = strdup(l->buf);
+        l->history[l->history_len - 1U - l->history_index] =
+          strdup(l->buf.data);
 
         // Show the new entry
         if (dir == COMLIN_HISTORY_NEXT) {
@@ -787,11 +794,12 @@ comlinEditHistoryNext(ComlinState* const l, int dir)
             l->history_index = l->history_len - 1U;
             return;
         }
-        strncpy(l->buf,
-                l->history[l->history_len - 1U - l->history_index],
-                l->buflen);
-        l->buf[l->buflen - 1U] = '\0';
-        l->len = l->pos = strlen(l->buf);
+
+        l->pos = strlen(l->history[l->history_len - 1U - l->history_index]);
+        l->buf.length = 0U;
+        abAppend(
+          &l->buf, l->history[l->history_len - 1U - l->history_index], l->pos);
+        l->buf.data[l->pos] = '\0';
         refreshLine(l);
     }
 }
@@ -801,10 +809,12 @@ comlinEditHistoryNext(ComlinState* const l, int dir)
 static void
 comlinEditDelete(ComlinState* const l)
 {
-    if (l->len > 0 && l->pos < l->len) {
-        memmove(l->buf + l->pos, l->buf + l->pos + 1U, l->len - l->pos - 1U);
-        --l->len;
-        l->buf[l->len] = '\0';
+    if (l->buf.length && l->pos < l->buf.length) {
+        memmove(l->buf.data + l->pos,
+                l->buf.data + l->pos + 1U,
+                l->buf.length - l->pos - 1U);
+        --l->buf.length;
+        l->buf.data[l->buf.length] = '\0';
         refreshLine(l);
     }
 }
@@ -813,11 +823,13 @@ comlinEditDelete(ComlinState* const l)
 static void
 comlinEditBackspace(ComlinState* const l)
 {
-    if (l->pos > 0 && l->len > 0) {
-        memmove(l->buf + l->pos - 1U, l->buf + l->pos, l->len - l->pos);
+    if (l->pos && l->buf.length) {
+        memmove(l->buf.data + l->pos - 1U,
+                l->buf.data + l->pos,
+                l->buf.length - l->pos);
         --l->pos;
-        --l->len;
-        l->buf[l->len] = '\0';
+        --l->buf.length;
+        l->buf.data[l->buf.length] = '\0';
         refreshLine(l);
     }
 }
@@ -829,24 +841,22 @@ comlinEditDeletePrevWord(ComlinState* const l)
 {
     size_t old_pos = l->pos;
 
-    while (l->pos > 0 && l->buf[l->pos - 1U] == ' ') {
+    while (l->pos > 0 && l->buf.data[l->pos - 1U] == ' ') {
         --l->pos;
     }
-    while (l->pos > 0 && l->buf[l->pos - 1U] != ' ') {
+    while (l->pos > 0 && l->buf.data[l->pos - 1U] != ' ') {
         --l->pos;
     }
     const size_t diff = old_pos - l->pos;
-    memmove(l->buf + l->pos, l->buf + old_pos, l->len + 1U - old_pos);
-    l->len -= diff;
+    memmove(l->buf.data + l->pos,
+            l->buf.data + old_pos,
+            l->buf.length + 1U - old_pos);
+    l->buf.length -= diff;
     refreshLine(l);
 }
 
 ComlinState*
-comlinNewState(const int stdin_fd,
-               const int stdout_fd,
-               char* const buf,
-               const size_t buflen,
-               const char* prompt)
+comlinNewState(const int stdin_fd, const int stdout_fd, const char* prompt)
 {
     ComlinState* const l = (ComlinState*)calloc(1, sizeof(ComlinState));
     if (!l) {
@@ -855,34 +865,30 @@ comlinNewState(const int stdin_fd,
 
     l->ifd = stdin_fd;
     l->ofd = stdout_fd;
+    l->dumb = isUnsupportedTerm();
     l->history_max_len = COMLIN_DEFAULT_HISTORY_MAX_LEN;
-    l->buf = buf;
-    l->buflen = buflen;
     l->prompt = prompt;
     l->plen = strlen(prompt);
     l->cols = (size_t)getColumns(stdin_fd, stdout_fd);
-
-    // Buffer starts empty
-    l->buf[0] = '\0';
-    --l->buflen; // Make sure there is always space for the nulterm
+    l->buf.data = (char*)calloc(1, l->cols);
+    l->buf.size = l->cols;
 
     return l;
 }
 
-int
+ComlinStatus
 comlinEditStart(ComlinState* const l)
 {
     // Enter raw mode
-    if (isatty(l->ifd) && enableRawMode(l) == -1) {
-        return -1;
+    if (enableRawMode(l) == -1) {
+        return COMLIN_BAD_TERMINAL;
     }
 
     // Reset line state
-    l->rawmode = true;
-    l->buf[0] = '\0';
+    l->buf.data[0] = '\0';
     l->pos = 0U;
     l->oldpos = 0U;
-    l->len = 0U;
+    l->buf.length = 0U;
     l->oldrows = 0U;
 
     /* The latest history entry is always our current buffer, that
@@ -893,75 +899,80 @@ comlinEditStart(ComlinState* const l)
     return write_string(l->ofd, l->prompt, l->plen);
 }
 
-char* comlinEditMore =
-  "If you see this, you are misusing the API: when comlinEditFeed() is "
-  "called, if it returns comlinEditMore the user is yet editing the line. "
-  "See the README file for more information.";
-
-char*
+ComlinStatus
 comlinEditFeed(ComlinState* const l)
 {
-    /* Not a TTY, pass control to line reading without character
-     * count limits. */
-    if (!isatty(l->ifd)) {
-        return comlinNoTTY();
-    }
-
+    // Read the next character
     char c = '\0';
-    char seq[3] = {'\0', '\0', '\0'};
-
     const ssize_t nread = read(l->ifd, &c, 1);
-    if (nread <= 0) {
-        return NULL;
+    if (nread < 0) {
+        return COMLIN_BAD_READ;
+    }
+    if (nread == 0) {
+        return COMLIN_END;
     }
 
-    /* Only autocomplete when the callback is set. It returns < 0 when
-     * there was an error reading from fd. Otherwise it will return the
-     * character that should be handled next. */
-    if ((l->in_completion || c == TAB) && l->completionCallback != NULL) {
+    if (l->dumb) {
+        // Fallback compatibility mode, read ASCII and emit no escapes
+        switch (c) {
+        case '\n':
+        case '\r':
+            return COMLIN_SUCCESS;
+        case CTRL_C:
+            return COMLIN_INTERRUPTED;
+        case CTRL_D:
+            return COMLIN_END;
+        default:
+            write(l->ofd, &c, 1U);
+            abAppend(&l->buf, &c, 1U);
+            return COMLIN_READING;
+        }
+    }
+
+    if ((l->in_completion || c == TAB) && l->completionCallback) {
+        // Try to autocomplete
         c = completeLine(l, c);
-        // Return on errors
         if (c < 0) {
-            return NULL;
+            return COMLIN_BAD_READ;
         }
-        // Read next character when 0
         if (c == 0) {
-            return comlinEditMore;
+            return COMLIN_READING;
         }
     }
 
+    char seq[3] = {'\0', '\0', '\0'};
     switch (c) {
+    case '\n':
     case ENTER: // Enter
         --l->history_len;
         free(l->history[l->history_len]);
         if (l->mlmode) {
             comlinEditMoveEnd(l);
         }
-        return strdup(l->buf);
-    case CTRL_C: // Ctrl-c
-        errno = EAGAIN;
-        return NULL;
+        l->buf.data[l->buf.length] = '\0';
+        return COMLIN_SUCCESS; // Command ready for access with comlinText()
+    case CTRL_C:               // Ctrl-c
+        return COMLIN_INTERRUPTED;
     case BACKSPACE: // Backspace
     case CTRL_H:    // Ctrl-h
         comlinEditBackspace(l);
         break;
     case CTRL_D: /* ctrl-d, remove char at right of cursor, or if the
                     line is empty, act as end-of-file. */
-        if (l->len > 0) {
+        if (l->buf.length > 0) {
             comlinEditDelete(l);
         } else {
             --l->history_len;
             free(l->history[l->history_len]);
-            errno = ENOENT;
-            return NULL;
+            return COMLIN_END;
         }
         break;
     case CTRL_T: // Ctrl-t, swaps current character with previous
-        if (l->pos > 0 && l->pos < l->len) {
-            const char aux = l->buf[l->pos - 1U];
-            l->buf[l->pos - 1U] = l->buf[l->pos];
-            l->buf[l->pos] = aux;
-            if (l->pos != l->len - 1U) {
+        if (l->pos > 0U && l->pos < l->buf.length) {
+            const char aux = l->buf.data[l->pos - 1];
+            l->buf.data[l->pos - 1] = l->buf.data[l->pos];
+            l->buf.data[l->pos] = aux;
+            if (l->pos != l->buf.length - 1U) {
                 ++l->pos;
             }
             refreshLine(l);
@@ -1041,18 +1052,15 @@ comlinEditFeed(ComlinState* const l)
         }
         break;
     default:
-        if (comlinEditInsert(l, c)) {
-            return NULL;
-        }
-        break;
+        return comlinEditInsert(l, c);
     case CTRL_U: // Ctrl+u, delete the whole line
-        l->buf[0] = '\0';
-        l->pos = l->len = 0;
+        l->buf.data[0] = '\0';
+        l->pos = l->buf.length = 0;
         refreshLine(l);
         break;
     case CTRL_K: // Ctrl+k, delete from current to end of line
-        l->buf[l->pos] = '\0';
-        l->len = l->pos;
+        l->buf.data[l->pos] = '\0';
+        l->buf.length = l->pos;
         refreshLine(l);
         break;
     case CTRL_A: // Ctrl+a, go to the start of the line
@@ -1069,127 +1077,39 @@ comlinEditFeed(ComlinState* const l)
         comlinEditDeletePrevWord(l);
         break;
     }
-    return comlinEditMore;
+    return COMLIN_READING;
 }
 
-void
+ComlinStatus
 comlinEditStop(ComlinState* const l)
 {
-    if (l->rawmode) {
-        disableRawMode(l);
-        if (write(l->ofd, "\n", 1) == -1) {
-            // Failed to write trailing newline, oh well
-        }
-    }
+    const ComlinStatus st = disableRawMode(l);
+
+    return st ? st : write_string(l->ofd, "\n", 1);
 }
 
 const char*
 comlinText(ComlinState* const l)
 {
-    return l->buf;
+    return l->buf.data;
 }
 
-/* This just implements a blocking loop for the multiplexed API.
- * In many applications that are not event-driven, we can just call
- * the blocking comlin API, wait for the user to complete the editing
- * and return the buffer. */
-static char*
-comlinBlockingEdit(ComlinState* const state)
-{
-    // Editing without a buffer is invalid
-    if (!state->buflen) {
-        errno = EINVAL;
-        return NULL;
-    }
-
-    comlinEditStart(state);
-    char* res = NULL;
-    while ((res = comlinEditFeed(state)) == comlinEditMore) {
-    }
-    comlinEditStop(state);
-    return res;
-}
-
-/* This function is called when comlin() is called with the standard
- * input file descriptor not attached to a TTY. So for example when the
- * program using comlin is called in pipe or with a file redirected
- * to its standard input. In this case, we want to be able to return the
- * line regardless of its length (by default we are limited to 4k). */
-static char*
-comlinNoTTY(void)
-{
-    char* line = NULL;
-    size_t len = 0;
-    size_t maxlen = 0;
-
-    while (1) {
-        if (len == maxlen) {
-            if (maxlen == 0) {
-                maxlen = 16;
-            }
-            maxlen *= 2;
-            char* oldval = line;
-            line = (char*)realloc(line, maxlen);
-            if (line == NULL) {
-                if (oldval) {
-                    free(oldval);
-                }
-                return NULL;
-            }
-        }
-        int c = fgetc(stdin);
-        if (c == EOF || c == '\n') {
-            if (c == EOF && len == 0) {
-                free(line);
-                return NULL;
-            }
-            line[len] = '\0';
-            return line;
-        }
-
-        line[len] = (char)c;
-        ++len;
-    }
-}
-
-char*
+ComlinStatus
 comlinReadLine(ComlinState* const state, const char* const prompt)
 {
-    char buf[COMLIN_MAX_LINE];
+    state->prompt = prompt;
+    state->plen = strlen(prompt);
 
-    if (!isatty(STDIN_FILENO)) {
-        /* Not a tty: read from file / pipe. In this mode we don't want any
-         * limit to the line size, so we call a function to handle that. */
-        return comlinNoTTY();
+    ComlinStatus st0 = comlinEditStart(state);
+    ComlinStatus st1 = COMLIN_SUCCESS;
+    if (!st0) {
+        do {
+            st0 = comlinEditFeed(state);
+        } while (st0 == COMLIN_READING);
+
+        st1 = comlinEditStop(state);
     }
-
-    if (isUnsupportedTerm()) {
-        const size_t prompt_len = strlen(prompt);
-        if (write_string(state->ofd, prompt, prompt_len)) {
-            return NULL;
-        }
-        if (fgets(buf, COMLIN_MAX_LINE, stdin) == NULL) {
-            return NULL;
-        }
-        size_t len = strlen(buf);
-        while (len && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
-            --len;
-            buf[len] = '\0';
-        }
-        return strdup(buf);
-    }
-
-    char* retval = comlinBlockingEdit(state);
-    return retval;
-}
-
-void
-comlinFreeCommand(void* ptr)
-{
-    if (ptr == comlinEditMore) {
-        return; // Protect from API misuse.
-    }
-    free(ptr);
+    return st0 ? st0 : st1;
 }
 
 /* ================================ History ================================= */
@@ -1326,9 +1246,8 @@ comlinFreeState(ComlinState* const state)
     free(state->history);
 
     // Disable raw mode if it was enabled by comlinNew
-    if (state->rawmode) {
-        disableRawMode(state);
-    }
+    disableRawMode(state);
 
+    free(state->buf.data);
     free(state);
 }

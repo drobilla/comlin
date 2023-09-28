@@ -30,7 +30,6 @@ printString(const char* const str)
 static void
 printKeyCodesLoop(void)
 {
-    char buf[1024];
     char quit[4] = {' ', ' ', ' ', ' '};
 
     fprintf(
@@ -38,7 +37,7 @@ printKeyCodesLoop(void)
       "Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
 
     // Start an edit just to set the terminal to raw mode
-    ComlinState* const state = comlinNewState(0, 1, buf, sizeof(buf), "");
+    ComlinState* const state = comlinNewState(0, 1, "");
     comlinEditStart(state);
 
     // Ignore it and process input keys ourselves
@@ -73,12 +72,10 @@ printKeyCodesLoop(void)
 int
 main(int argc, char** argv)
 {
-    char* line = NULL;
+    const char* line = NULL;
     char* prgname = argv[0];
     int async = 0;
     int multiline = 0;
-
-    char buf[1024];
 
     // Parse options, with --multiline we enable multi line editing
     while (argc > 1) {
@@ -100,7 +97,7 @@ main(int argc, char** argv)
         }
     }
 
-    ComlinState* const state = comlinNewState(0, 1, buf, sizeof(buf), "hello>");
+    ComlinState* const state = comlinNewState(0, 1, "hello>");
     if (multiline) {
         comlinSetMultiLine(state, 1);
     }
@@ -122,8 +119,11 @@ main(int argc, char** argv)
 
     while (1) {
         if (!async) {
-            line = comlinReadLine(state, "hello> ");
-            if (line == NULL) {
+            const ComlinStatus st = comlinReadLine(state, "hello> ");
+            if (!st) {
+                line = comlinText(state);
+            } else {
+                line = NULL;
                 break;
             }
         } else {
@@ -147,11 +147,14 @@ main(int argc, char** argv)
                 }
 
                 if (retval) {
-                    line = comlinEditFeed(state);
-                    /* A NULL return means: line editing is continuing.
-                     * Otherwise the user hit enter or stopped editing
-                     * (CTRL+C/D). */
-                    if (line != comlinEditMore) {
+                    const ComlinStatus st = comlinEditFeed(state);
+                    if (st == COMLIN_INTERRUPTED || st == COMLIN_END) {
+                        line = NULL;
+                        break;
+                    }
+
+                    if (!st) {
+                        line = comlinText(state);
                         break;
                     }
                 } else {
@@ -192,7 +195,6 @@ main(int argc, char** argv)
             printString(line);
             printString("\n");
         }
-        free(line);
     }
 
     comlinFreeState(state);

@@ -31,6 +31,23 @@ extern "C" {
 */
 
 /**
+   @defgroup comlin_status Status Codes
+   @{
+*/
+
+/// Return status code
+typedef enum {
+    COMLIN_SUCCESS,      ///< Success
+    COMLIN_READING,      ///< Reading continues
+    COMLIN_END,          ///< End of input reached
+    COMLIN_INTERRUPTED,  ///< Operation interrupted
+    COMLIN_BAD_READ,     ///< Failed to read from input
+    COMLIN_BAD_WRITE,    ///< Failed to write to output
+    COMLIN_BAD_TERMINAL, ///< Failed to configure terminal
+} ComlinStatus;
+
+/**
+   @}
    @defgroup comlin_state State
    @{
 */
@@ -52,11 +69,7 @@ typedef struct ComlinStateImpl ComlinState;
  * @return A new state that must be freed with comlinFreeState().
  */
 COMLIN_API ComlinState*
-comlinNewState(int stdin_fd,
-               int stdout_fd,
-               char* buf,
-               size_t buflen,
-               const char* prompt);
+comlinNewState(int stdin_fd, int stdout_fd, const char* prompt);
 
 /** Free a terminal session.
  *
@@ -72,22 +85,15 @@ comlinFreeState(ComlinState* state);
    @{
 */
 
-/// Sentinel return string for when the user is still editing the line
-COMLIN_API extern char* comlinEditMore;
-
-/** Start a non-blocking command line read.
+/** Start a non-blocking line edit.
  *
- * This will:
+ * This will prepare the terminal if necessary, show the prompt, then return.
+ * After this returns successfully, the line can be incrementally read by
+ * calling #comlinEditFeed and finally #comlinEditStop.
  *
- * 1. Initialize the comlin state passed by the user.
- * 2. Put the terminal in RAW mode.
- * 3. Show the prompt.
- * 4. Return control to the user, that will have to call #comlinEditFeed
- *    each time there is some data arriving in the standard input.
- *
- * The user can also call #comlinHide and #comlinShow if it is required
- * to show some input arriving asynchronously, without mixing it with the
- * currently edited line.
+ * When an edit is in progress, new output can be shown by calling #comlinHide,
+ * writing the output to the output stream, then calling #comlinShow to
+ * redisplay the current line and reclaim the terminal.
  *
  * When #comlinEditFeed returns non-NULL, the user finished with the line
  * editing session (pressed enter CTRL-D/C): in this case the caller needs to
@@ -95,51 +101,66 @@ COMLIN_API extern char* comlinEditMore;
  * destroy the buffer, as long as the #ComlinState is still valid in the
  * context of the caller.
  *
- * @return 0 on success, or -1 if writing to standard output fails.
+ * @return #COMLIN_SUCCESS, or an error if configuring or writing to the
+ * terminal fails.
  */
-COMLIN_API int
+COMLIN_API ComlinStatus
 comlinEditStart(ComlinState* l);
 
-/** This function is part of the multiplexed API of comlin, see the top
- * comment on #comlinEditStart for more information.  Call this function
- * each time there is some data to read from the standard input file
- * descriptor.  In the case of blocking operations, this function can just be
- * called in a loop, and block.
+/** Read input during a non-blocking line edit.
  *
- * The function returns #comlinEditMore to signal that line editing is still
- * in progress, that is, the user didn't yet pressed enter / CTRL-D.  Otherwise
- * the function returns the pointer to the heap-allocated buffer with the
- * edited line, that the user should free with #comlinFreeCommand.
+ * This will read an input character if possible, and update the state
+ * accordingly.  The return status indicates how to proceed:
  *
- * On special conditions, NULL is returned and errno is set to `EAGAIN` if the
- * user pressed Ctrl-C, `ENOENT` if the user pressed Ctrl-D, or some other
- * error number on an I/O error.
+ * #COMLIN_SUCCESS: Line is entered and available via #comlinText.
+ * #COMLIN_READING: Reading should continue.
+ * #COMLIN_INTERRUPTED: Input interrupted with Ctrl-C.
+ * #COMLIN_END: Input ended with Ctrl-D.
+ *
+ * @return #COMLIN_SUCCESS, #COMLIN_READING, #COMLIN_END, #COMLIN_INTERRUPTED,
+ * or an error if communicating with the terminal failed.
  */
-COMLIN_API char*
+COMLIN_API ComlinStatus
 comlinEditFeed(ComlinState* l);
 
-/** Finish editing a line.
+/** Finish a non-blocking line edit.
  *
- * This should be called when #comlinEditFeed returns something a finished
- * command string.  At that point, the user input is in the buffer, and we can
- * restore the terminal to normal mode.
+ * This restores the terminal state modified by #comlinEditStart if necessary,
+ * and resets the state for another read.  After this, #comlinEditFeed can no
+ * longer be called until a new edit is started, but if a line was entered it
+ * is still available via #comlinText.
  */
-COMLIN_API void
+COMLIN_API ComlinStatus
 comlinEditStop(ComlinState* l);
 
-/** Return the current command line text.
+/** Return the text of the current line.
  *
- * This is used to get the finished command after it has been entered (indicated
- * by #comlinEditFeed returning 0).
+ * After a line has been entered, this returns a pointer to the complete line,
+ * excluding any trailing newline or carriage return characters.  It can also
+ * be used during an edit to access the incomplete line currently being edited
+ * for debugging purposes, although in this state the line should never be
+ * interpreted as a "sensible" line the user has entered.
+ *
+ * @return A pointer to a string, or null.
  */
 COMLIN_API const char*
 comlinText(ComlinState* l);
 
-/// Hide the current line, when using the multiplexing API
+/** Pause a non-blocking line edit.
+ *
+ * This clears the pending input from the screen and resets the terminal mode
+ * if necessary.  Then, the application can write its own output, but
+ * #comlinEditFeed can't be called until the edit is resumed by #comlinShow.
+ */
 COMLIN_API void
 comlinHide(ComlinState* l);
 
-/// Show the current line, when using the multiplexing API
+/** Resume a non-blocking line edit.
+ *
+ * This will prepare the terminal if necessary, and show the prompt and current
+ * line with the cursor where it was.  Then, #comlinEditFeed can be called
+ * again to read more input.
+ */
 COMLIN_API void
 comlinShow(ComlinState* l);
 
@@ -155,15 +176,10 @@ comlinShow(ComlinState* l);
  * the line editing function or uses dummy fgets() so that you will be able to
  * type something even in the most desperate of the conditions.
  *
- * @return A newly allocated command string that must be freed with
- * #comlinFreeCommand.
+ * @return #COMLIN_SUCCESS, or an error if reading from the terminal fails.
  */
-COMLIN_API char*
+COMLIN_API ComlinStatus
 comlinReadLine(ComlinState* state, const char* prompt);
-
-/// Free a command string returned by comlin()
-COMLIN_API void
-comlinFreeCommand(void* ptr);
 
 /**
    @}
