@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,12 +37,12 @@ struct ComlinStateImpl {
     ComlinCompletionCallback* completionCallback; ///< Get completions
 
     // Terminal session state
-    int ifd;      ///< Terminal stdin file descriptor
-    int ofd;      ///< Terminal stdout file descriptor
-    size_t cols;  ///< Number of columns in terminal
-    int maskmode; ///< Show asterisks instead of input (for passwords)
-    int rawmode;  ///< Terminal is currently in raw mode
-    int mlmode;   ///< Multi-line mode (default is single line)
+    int ifd;       ///< Terminal stdin file descriptor
+    int ofd;       ///< Terminal stdout file descriptor
+    size_t cols;   ///< Number of columns in terminal
+    bool maskmode; ///< Show asterisks instead of input (for passwords)
+    bool rawmode;  ///< Terminal is currently in raw mode
+    bool mlmode;   ///< Multi-line mode (default is single line)
 
     // History
     int history_max_len; ///< Maximum number of history entries to keep
@@ -57,7 +58,7 @@ struct ComlinStateImpl {
     size_t pos;            ///< Current cursor position
     size_t len;            ///< Current edited line length
     int history_index;     ///< The history index we're currently editing
-    int in_completion;     ///< Currently doing a completion
+    bool in_completion;    ///< Currently doing a completion
     size_t completion_idx; ///< Index of next completion to propose
 
     // Multi-line refresh state
@@ -110,39 +111,39 @@ refreshLine(ComlinState* l);
 void
 comlinMaskModeEnable(ComlinState* const comlin)
 {
-    comlin->maskmode = 1;
+    comlin->maskmode = true;
 }
 
 void
 comlinMaskModeDisable(ComlinState* const comlin)
 {
-    comlin->maskmode = 0;
+    comlin->maskmode = false;
 }
 
 void
-comlinSetMultiLine(ComlinState* const comlin, const int ml)
+comlinSetMultiLine(ComlinState* const comlin, const bool ml)
 {
     comlin->mlmode = ml;
 }
 
 /* Return true if the terminal name is in the list of terminals we know are
  * not able to understand basic escape sequences. */
-static int
+static bool
 isUnsupportedTerm(void)
 {
     char* term = getenv("TERM");
 
     if (term == NULL) {
-        return 0;
+        return false;
     }
 
     for (int j = 0; unsupported_term[j]; ++j) {
         if (!strcasecmp(term, unsupported_term[j])) {
-            return 1;
+            return true;
         }
     }
 
-    return 0;
+    return false;
 }
 
 static int
@@ -199,7 +200,7 @@ disableRawMode(ComlinState* const state)
     // Don't even check the return value as it's too late
     if (state->rawmode &&
         tcsetattr(state->ifd, TCSAFLUSH, &state->cooked) != -1) {
-        state->rawmode = 0;
+        state->rawmode = false;
     }
 }
 
@@ -377,12 +378,12 @@ completeLine(ComlinState* const ls, char keypressed)
     ls->completionCallback(ls->buf, &lc);
     if (lc.len == 0) {
         comlinBeep(ls);
-        ls->in_completion = 0;
+        ls->in_completion = false;
     } else {
         switch (c) {
         case TAB: // Tab
-            if (ls->in_completion == 0) {
-                ls->in_completion = 1;
+            if (!ls->in_completion) {
+                ls->in_completion = true;
                 ls->completion_idx = 0;
             } else {
                 ls->completion_idx = (ls->completion_idx + 1) % (lc.len + 1);
@@ -397,7 +398,7 @@ completeLine(ComlinState* const ls, char keypressed)
             if (ls->completion_idx < lc.len) {
                 refreshLine(ls);
             }
-            ls->in_completion = 0;
+            ls->in_completion = false;
             c = 0;
             break;
         default:
@@ -407,7 +408,7 @@ completeLine(ComlinState* const ls, char keypressed)
                   ls->buf, ls->buflen, "%s", lc.cvec[ls->completion_idx]);
                 ls->len = ls->pos = nwritten;
             }
-            ls->in_completion = 0;
+            ls->in_completion = false;
             break;
         }
 
@@ -523,7 +524,7 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
     if (flags & REFRESH_WRITE) {
         // Write the prompt and the current buffer content
         abAppend(&ab, l->prompt, strlen(l->prompt));
-        if (l->maskmode == 1) {
+        if (l->maskmode) {
             while (len--) {
                 abAppend(&ab, "*", 1);
             }
@@ -595,7 +596,7 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
     if (flags & REFRESH_WRITE) {
         // Write the prompt and the current buffer content
         abAppend(&ab, l->prompt, strlen(l->prompt));
-        if (l->maskmode == 1) {
+        if (l->maskmode) {
             for (unsigned i = 0; i < l->len; ++i) {
                 abAppend(&ab, "*", 1);
             }
@@ -869,7 +870,7 @@ comlinEditStart(ComlinState* const l)
     }
 
     // Reset line state
-    l->rawmode = 1;
+    l->rawmode = true;
     l->buf[0] = '\0';
     l->pos = 0U;
     l->oldpos = 0U;
