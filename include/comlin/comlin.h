@@ -69,7 +69,7 @@ typedef struct ComlinStateImpl ComlinState;
  * @return A new state that must be freed with #comlin_free_state.
  */
 COMLIN_API ComlinState*
-comlin_new_state(int stdin_fd, int stdout_fd, const char* prompt);
+comlin_new_state(int stdin_fd, int stdout_fd, char const* prompt);
 
 /** Free a terminal session.
  *
@@ -143,7 +143,7 @@ comlin_edit_stop(ComlinState* l);
  *
  * @return A pointer to a string, or null.
  */
-COMLIN_API const char*
+COMLIN_API char const*
 comlin_text(ComlinState* l);
 
 /** Pause a non-blocking line edit.
@@ -179,7 +179,7 @@ comlin_show(ComlinState* l);
  * @return #COMLIN_SUCCESS, or an error if reading from the terminal fails.
  */
 COMLIN_API ComlinStatus
-comlin_read_line(ComlinState* state, const char* prompt);
+comlin_read_line(ComlinState* state, char const* prompt);
 
 /**
    @}
@@ -198,7 +198,7 @@ typedef struct {
 } ComlinCompletions;
 
 /// Completion callback
-typedef void(ComlinCompletionCallback)(const char*, ComlinCompletions*);
+typedef void(ComlinCompletionCallback)(char const*, ComlinCompletions*);
 
 /// Register a callback function to be called for tab-completion
 COMLIN_API void
@@ -211,7 +211,7 @@ comlin_set_completion_callback(ComlinState* state,
  * input string when the user pressed `TAB`.
  */
 COMLIN_API void
-comlin_add_completion(ComlinCompletions* lc, const char* str);
+comlin_add_completion(ComlinCompletions* lc, char const* str);
 
 /**
    @}
@@ -225,7 +225,7 @@ comlin_add_completion(ComlinCompletions* lc, const char* str);
  * saved explicitly with #comlin_history_save.
  */
 COMLIN_API int
-comlin_history_add(ComlinState* state, const char* line);
+comlin_history_add(ComlinState* state, char const* line);
 
 /** Set the maximum length for the history.
  *
@@ -241,14 +241,14 @@ comlin_history_set_max_len(ComlinState* state, size_t len);
  * @return 0 on success, otherwise -1.
  */
 COMLIN_API int
-comlin_history_save(const ComlinState* state, const char* filename);
+comlin_history_save(ComlinState const* state, char const* filename);
 
 /** Load the history from the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
 COMLIN_API int
-comlin_history_load(ComlinState* state, const char* filename);
+comlin_history_load(ComlinState* state, char const* filename);
 
 /**
    @}

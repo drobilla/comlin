@@ -13,7 +13,7 @@
 #include <string.h>
 
 static void
-completion(const char* buf, ComlinCompletions* lc)
+completion(char const* buf, ComlinCompletions* lc)
 {
     if (buf[0] == 'h') {
         comlin_add_completion(lc, "hello");
@@ -22,7 +22,7 @@ completion(const char* buf, ComlinCompletions* lc)
 }
 
 static void
-printString(const char* const str)
+printString(char const* const str)
 {
     write(1, str, strlen(str));
 }
@@ -44,7 +44,7 @@ printKeyCodesLoop(void)
     while (1) {
         // Read an input character
         char c = '\0';
-        const ssize_t nread = read(STDIN_FILENO, &c, 1);
+        ssize_t const nread = read(STDIN_FILENO, &c, 1);
         if (nread <= 0) {
             continue;
         }
@@ -72,7 +72,7 @@ printKeyCodesLoop(void)
 int
 main(int argc, char** argv)
 {
-    const char* line = NULL;
+    char const* line = NULL;
     char* prgname = argv[0];
     int async = 0;
     int multiline = 0;
