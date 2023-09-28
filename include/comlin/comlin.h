@@ -66,10 +66,19 @@ typedef struct ComlinStateImpl ComlinState;
  * escape sequences to the terminal to determine its width, but otherwise
  * doesn't cause any output changes.
  *
+ * @param in_fd Input file descriptor (usually 0 for stdin).
+ *
+ * @param out_fd Output file descriptor (usually 1 for stdout).
+ *
+ * @param term Terminal type, like the TERM environment variable.  Terminals
+ * are assumed to support VT100 escapes, except "dumb", "cons25", and "emacs",
+ * which are treated as truly "dumb" terminals that only support linear text
+ * input and output.
+ *
  * @return A new state that must be freed with #comlin_free_state.
  */
 COMLIN_API ComlinState*
-comlin_new_state(int stdin_fd, int stdout_fd);
+comlin_new_state(int in_fd, int out_fd, char const* term);
 
 /** Free a terminal session.
  *

@@ -37,7 +37,7 @@ printKeyCodesLoop(void)
       "Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
 
     // Start an edit just to set the terminal to raw mode
-    ComlinState* const state = comlin_new_state(0, 1);
+    ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"));
     comlin_edit_start(state, "> ");
 
     // Ignore it and process input keys ourselves
@@ -98,7 +98,7 @@ main(int argc, char** argv)
         }
     }
 
-    ComlinState* const state = comlin_new_state(0, 1);
+    ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"));
     if (multiline) {
         comlin_set_multi_line(state, 1);
     }
