@@ -32,10 +32,8 @@
 #define COMLIN_MAX_LINE 4096
 
 struct ComlinStateImpl {
-    // Callbacks
+    // Completion
     ComlinCompletionCallback* completionCallback; ///< Get completions
-    ComlinHintsCallback* hintsCallback;           ///< Get hints
-    ComlinFreeHintsCallback* freeHintsCallback;   ///< Free hint
 
     // Terminal session state
     int ifd;      ///< Terminal stdin file descriptor
@@ -433,19 +431,6 @@ comlinSetCompletionCallback(ComlinState* const state,
 }
 
 void
-comlinSetHintsCallback(ComlinState* const state, ComlinHintsCallback* const fn)
-{
-    state->hintsCallback = fn;
-}
-
-void
-comlinSetFreeHintsCallback(ComlinState* const state,
-                           ComlinFreeHintsCallback* const fn)
-{
-    state->freeHintsCallback = fn;
-}
-
-void
 comlinAddCompletion(ComlinCompletions* lc, const char* str)
 {
     size_t len = strlen(str);
@@ -503,44 +488,6 @@ abFree(struct abuf* ab)
     free(ab->b);
 }
 
-/* Helper of refreshSingleLine() and refreshMultiLine() to show hints
- * to the right of the prompt. */
-static void
-refreshShowHints(struct abuf* ab, ComlinState* l, int plen)
-{
-    char seq[64];
-    if (l->hintsCallback && plen + l->len < l->cols) {
-        int color = -1;
-        int bold = 0;
-        char* hint = l->hintsCallback(l->buf, &color, &bold);
-        if (hint) {
-            int hintlen = strlen(hint);
-            int hintmaxlen = l->cols - (plen + l->len);
-            if (hintlen > hintmaxlen) {
-                hintlen = hintmaxlen;
-            }
-            if (bold == 1 && color == -1) {
-                color = 37;
-            }
-            if (color != -1 || bold != 0) {
-                snprintf(seq, 64, "\033[%d;%d;49m", bold, color);
-            } else {
-                seq[0] = '\0';
-            }
-            abAppend(ab, seq, strlen(seq));
-            abAppend(ab, hint, hintlen);
-            if (color != -1 || bold != 0) {
-                abAppend(ab, "\033[0m", 4);
-            }
-
-            // Call the function to free the hint returned
-            if (l->freeHintsCallback) {
-                l->freeHintsCallback(hint);
-            }
-        }
-    }
-}
-
 /* Single line low level line refresh.
  *
  * Rewrite the currently edited line accordingly to the buffer content,
@@ -583,8 +530,6 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
         } else {
             abAppend(&ab, buf, len);
         }
-        // Show hints if any
-        refreshShowHints(&ab, l, plen);
     }
 
     // Erase to right
@@ -657,9 +602,6 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
         } else {
             abAppend(&ab, l->buf, l->len);
         }
-
-        // Show hints if any
-        refreshShowHints(&ab, l, plen);
 
         /* If we are at the very end of the screen with our prompt, we need to
          * emit a newline and move the prompt to the first column. */
@@ -753,11 +695,10 @@ comlinEditInsert(ComlinState* const l, char c)
             ++l->pos;
             ++l->len;
             l->buf[l->len] = '\0';
-            if ((!l->mlmode && l->plen + l->len < l->cols &&
-                 !l->hintsCallback)) {
+            if (!l->mlmode && l->plen + l->len < l->cols) {
                 /* Avoid a full update of the line in the
                  * trivial case. */
-                char d = (l->maskmode == 1) ? '*' : c;
+                char d = l->maskmode ? '*' : c;
                 if (write(l->ofd, &d, 1) != 1) {
                     return -1;
                 }
@@ -986,15 +927,6 @@ comlinEditFeed(ComlinState* const l)
         free(l->history[l->history_len]);
         if (l->mlmode) {
             comlinEditMoveEnd(l);
-        }
-
-        if (l->hintsCallback) {
-            /* Force a refresh without hints to leave the previous
-             * line as the user typed it after a newline. */
-            ComlinHintsCallback* hc = l->hintsCallback;
-            l->hintsCallback = NULL;
-            refreshLine(l);
-            l->hintsCallback = hc;
         }
         return strdup(l->buf);
     case CTRL_C: // Ctrl-c

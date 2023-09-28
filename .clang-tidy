@@ -7,7 +7,6 @@ Checks: >
   -*-narrowing-conversions,
   -altera-*,
   -android-cloexec-fopen,
-  -bugprone-easily-swappable-parameters,
   -cert-err33-c,
   -cert-err34-c,
   -concurrency-mt-unsafe,
