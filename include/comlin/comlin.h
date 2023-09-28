@@ -127,6 +127,14 @@ comlinEditFeed(ComlinState* l);
 COMLIN_API void
 comlinEditStop(ComlinState* l);
 
+/** Return the current command line text.
+ *
+ * This is used to get the finished command after it has been entered (indicated
+ * by #comlinEditFeed returning 0).
+ */
+COMLIN_API const char*
+comlinText(ComlinState* l);
+
 /// Hide the current line, when using the multiplexing API
 COMLIN_API void
 comlinHide(ComlinState* l);
