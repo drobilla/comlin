@@ -13,7 +13,7 @@
 #include <string.h>
 
 static void
-completion(char const* buf, ComlinCompletions* lc)
+completion(char const* buf, ComlinCompletions* const lc)
 {
     if (buf[0] == 'h') {
         comlin_add_completion(lc, "hello");
@@ -72,8 +72,9 @@ printKeyCodesLoop(void)
 int
 main(int argc, char** argv)
 {
+    char* const prgname = argv[0];
+
     char const* line = NULL;
-    char* prgname = argv[0];
     int async = 0;
     int multiline = 0;
 
@@ -119,7 +120,7 @@ main(int argc, char** argv)
 
     while (1) {
         if (!async) {
-            const ComlinStatus st = comlin_read_line(state, "hello> ");
+            ComlinStatus const st = comlin_read_line(state, "hello> ");
             if (!st) {
                 line = comlin_text(state);
             } else {
@@ -140,7 +141,7 @@ main(int argc, char** argv)
                 tv.tv_sec = 1; // 1 sec timeout
                 tv.tv_usec = 0;
 
-                int retval = select(1, &readfds, NULL, NULL, &tv);
+                int const retval = select(1, &readfds, NULL, NULL, &tv);
                 if (retval == -1) {
                     perror("select()");
                     return 1;
@@ -184,7 +185,7 @@ main(int argc, char** argv)
             comlin_history_save(state, "history.txt"); // Save history to disk
         } else if (!strncmp(line, "/historylen", 11)) {
             // The "/historylen" command will change the history len
-            int len = atoi(line + 11);
+            int const len = atoi(line + 11);
             comlin_history_set_max_len(state, (size_t)len);
         } else if (!strncmp(line, "/mask", 5)) {
             comlin_mask_mode_enable(state);

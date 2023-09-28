@@ -144,7 +144,7 @@ comlin_edit_stop(ComlinState* l);
  * @return A pointer to a string, or null.
  */
 COMLIN_API char const*
-comlin_text(ComlinState* l);
+comlin_text(ComlinState const* l);
 
 /** Pause a non-blocking line edit.
  *
