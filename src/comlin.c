@@ -154,6 +154,22 @@ is_unsupported_term(void)
     return false;
 }
 
+static ssize_t
+read_full(const int fd, char* const buf, const size_t count)
+{
+    size_t offset = 0U;
+    while (offset < count) {
+        const ssize_t r = read(fd, buf + offset, count - offset);
+        if (r <= 0) {
+            return -1;
+        }
+
+        offset += (size_t)r;
+    }
+
+    return (ssize_t)count;
+}
+
 static ComlinStatus
 write_string(const int fd, const char* const buf, const size_t count)
 {
@@ -991,13 +1007,8 @@ comlin_edit_feed(ComlinState* const l)
         comlin_edit_history_next(l, COMLIN_HISTORY_NEXT);
         break;
     case ESC: // Escape sequence
-        /* Read the next two bytes representing the escape sequence.
-         * Use two calls to handle slow terminals returning the two
-         * chars at different times. */
-        if (read(l->ifd, seq, 1) == -1) {
-            break;
-        }
-        if (read(l->ifd, seq + 1, 1) == -1) {
+        // Read the next two bytes representing the escape sequence
+        if (read_full(l->ifd, seq, 2) != 2) {
             break;
         }
 
