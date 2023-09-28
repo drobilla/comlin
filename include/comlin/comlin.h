@@ -217,7 +217,7 @@ comlinHistoryAdd(ComlinState* state, const char* line);
  * length is less than the number of items already in the history.
  */
 COMLIN_API int
-comlinHistorySetMaxLen(ComlinState* state, int len);
+comlinHistorySetMaxLen(ComlinState* state, size_t len);
 
 /** Save the history in the specified file.
  *

@@ -23,6 +23,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -45,9 +46,9 @@ struct ComlinStateImpl {
     bool mlmode;   ///< Multi-line mode (default is single line)
 
     // History
-    int history_max_len; ///< Maximum number of history entries to keep
-    int history_len;     ///< Number of history entries
-    char** history;      ///< History entries
+    size_t history_max_len; ///< Maximum number of history entries to keep
+    size_t history_len;     ///< Number of history entries
+    char** history;         ///< History entries
 
     // Line editing state
     struct termios cooked; ///< Terminal settings before raw mode
@@ -57,7 +58,7 @@ struct ComlinStateImpl {
     size_t plen;           ///< Prompt length
     size_t pos;            ///< Current cursor position
     size_t len;            ///< Current edited line length
-    int history_index;     ///< The history index we're currently editing
+    size_t history_index;  ///< The history index we're currently editing
     bool in_completion;    ///< Currently doing a completion
     size_t completion_idx; ///< Index of next completion to propose
 
@@ -72,7 +73,9 @@ static char*
 comlinNoTTY(void);
 
 static void
-refreshLineWithCompletion(ComlinState* ls, ComlinCompletions* lc, int flags);
+refreshLineWithCompletion(ComlinState* ls,
+                          ComlinCompletions* lc,
+                          unsigned flags);
 
 static void
 refreshLineWithFlags(ComlinState* l, unsigned flags);
@@ -152,9 +155,9 @@ write_string(const int fd, const char* const buf, const size_t count)
     size_t offset = 0U;
     size_t remaining = count;
     while (remaining > 0) {
-        const int r = write(fd, buf + offset, remaining);
+        const ssize_t r = write(fd, buf + offset, remaining);
         if (r < 0) {
-            return r;
+            return -1;
         }
 
         remaining -= (size_t)r;
@@ -221,7 +224,7 @@ getCursorPosition(int ifd, int ofd)
     }
 
     // Read the response: ESC [ rows ; cols R
-    while (i < sizeof(buf) - 1) {
+    while (i + 1U < sizeof(buf)) {
         if (read(ifd, buf + i, 1) != 1) {
             break;
         }
@@ -310,7 +313,7 @@ comlinBeep(ComlinState* const state)
 static void
 freeCompletions(ComlinCompletions* lc)
 {
-    for (size_t i = 0; i < lc->len; ++i) {
+    for (size_t i = 0U; i < lc->len; ++i) {
         free(lc->cvec[i]);
     }
     if (lc->cvec != NULL) {
@@ -327,7 +330,7 @@ freeCompletions(ComlinCompletions* lc)
 static void
 refreshLineWithCompletion(ComlinState* const ls,
                           ComlinCompletions* lc,
-                          int flags)
+                          const unsigned flags)
 {
     // Obtain the table of completions if the caller didn't provide one
     ComlinCompletions ctable = {0, NULL};
@@ -406,7 +409,8 @@ completeLine(ComlinState* const ls, char keypressed)
             if (ls->completion_idx < lc.len) {
                 const int nwritten = snprintf(
                   ls->buf, ls->buflen, "%s", lc.cvec[ls->completion_idx]);
-                ls->len = ls->pos = nwritten;
+                assert(nwritten > 0);
+                ls->len = ls->pos = (size_t)nwritten;
             }
             ls->in_completion = false;
             break;
@@ -459,7 +463,7 @@ comlinAddCompletion(ComlinCompletions* lc, const char* str)
  * output in a single call, to avoid flickering effects. */
 struct abuf {
     char* b;
-    int len;
+    size_t len;
 };
 
 static void
@@ -470,7 +474,7 @@ abInit(struct abuf* ab)
 }
 
 static void
-abAppend(struct abuf* ab, const char* s, int len)
+abAppend(struct abuf* const ab, const char* const s, const size_t len)
 {
     char* buf = (char*)realloc(ab->b, ab->len + len);
 
@@ -561,10 +565,11 @@ static void
 refreshMultiLine(ComlinState* const l, unsigned flags)
 {
     char seq[64];
-    int plen = strlen(l->prompt);
-    int rows = (plen + l->len + l->cols - 1) / l->cols; // Rows in current buf
-    int rpos = (plen + l->oldpos + l->cols) / l->cols;  // Cursor relative row
-    int old_rows = l->oldrows;
+    const size_t plen = strlen(l->prompt);
+    size_t rows =
+      (plen + l->len + l->cols - 1U) / l->cols;           // Rows in current buf
+    size_t rpos = (plen + l->oldpos + l->cols) / l->cols; // Cursor relative row
+    size_t old_rows = l->oldrows;
     int fd = l->ofd;
     struct abuf ab;
 
@@ -575,13 +580,13 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
     abInit(&ab);
 
     if (flags & REFRESH_CLEAN) {
-        if (old_rows - rpos > 0) {
-            snprintf(seq, 64, "\x1B[%dB", old_rows - rpos);
+        if (old_rows > rpos) {
+            snprintf(seq, 64, "\x1B[%zuB", old_rows - rpos);
             abAppend(&ab, seq, strlen(seq));
         }
 
         // Now for every row clear it, go up
-        for (int j = 0; j < old_rows - 1; ++j) {
+        for (size_t j = 1U; j < old_rows; ++j) {
             snprintf(seq, 64, "\r\x1B[0K\x1B[1A");
             abAppend(&ab, seq, strlen(seq));
         }
@@ -611,25 +616,25 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
             snprintf(seq, 64, "\r");
             abAppend(&ab, seq, strlen(seq));
             ++rows;
-            if (rows > (int)l->oldrows) {
+            if (rows > l->oldrows) {
                 l->oldrows = rows;
             }
         }
 
         // Move cursor to right position
-        const int rpos2 =
+        const size_t rpos2 =
           (plen + l->pos + l->cols) / l->cols; // Current cursor relative row
 
         // Go up till we reach the expected position
-        if (rows - rpos2 > 0) {
-            snprintf(seq, 64, "\x1B[%dA", rows - rpos2);
+        if (rows > rpos2) {
+            snprintf(seq, 64, "\x1B[%zuA", rows - rpos2);
             abAppend(&ab, seq, strlen(seq));
         }
 
         // Set column
-        const int col = (plen + (int)l->pos) % (int)l->cols;
+        const size_t col = (plen + l->pos) % l->cols;
         if (col) {
-            snprintf(seq, 64, "\r\x1B[%dC", col);
+            snprintf(seq, 64, "\r\x1B[%zuC", col);
         } else {
             snprintf(seq, 64, "\r");
         }
@@ -699,7 +704,7 @@ comlinEditInsert(ComlinState* const l, char c)
             if (!l->mlmode && l->plen + l->len < l->cols) {
                 /* Avoid a full update of the line in the
                  * trivial case. */
-                char d = l->maskmode ? '*' : c;
+                char d = (char)(l->maskmode ? '*' : c);
                 if (write(l->ofd, &d, 1) != 1) {
                     return -1;
                 }
@@ -765,24 +770,28 @@ comlinEditMoveEnd(ComlinState* const l)
 static void
 comlinEditHistoryNext(ComlinState* const l, int dir)
 {
-    if (l->history_len > 1) {
+    if (l->history_len > 1U) {
         // Update the current history entry before overwriting it with the next
-        free(l->history[l->history_len - 1 - l->history_index]);
-        l->history[l->history_len - 1 - l->history_index] = strdup(l->buf);
+        free(l->history[l->history_len - 1U - l->history_index]);
+        l->history[l->history_len - 1U - l->history_index] = strdup(l->buf);
 
         // Show the new entry
-        l->history_index += (dir == COMLIN_HISTORY_PREV) ? 1 : -1;
-        if (l->history_index < 0) {
-            l->history_index = 0;
-            return;
+        if (dir == COMLIN_HISTORY_NEXT) {
+            if (l->history_index == 0) {
+                return;
+            }
+            --l->history_index;
+        } else {
+            ++l->history_index;
         }
         if (l->history_index >= l->history_len) {
-            l->history_index = l->history_len - 1;
+            l->history_index = l->history_len - 1U;
             return;
         }
-        strncpy(
-          l->buf, l->history[l->history_len - 1 - l->history_index], l->buflen);
-        l->buf[l->buflen - 1] = '\0';
+        strncpy(l->buf,
+                l->history[l->history_len - 1U - l->history_index],
+                l->buflen);
+        l->buf[l->buflen - 1U] = '\0';
         l->len = l->pos = strlen(l->buf);
         refreshLine(l);
     }
@@ -794,7 +803,7 @@ static void
 comlinEditDelete(ComlinState* const l)
 {
     if (l->len > 0 && l->pos < l->len) {
-        memmove(l->buf + l->pos, l->buf + l->pos + 1, l->len - l->pos - 1);
+        memmove(l->buf + l->pos, l->buf + l->pos + 1U, l->len - l->pos - 1U);
         --l->len;
         l->buf[l->len] = '\0';
         refreshLine(l);
@@ -806,7 +815,7 @@ static void
 comlinEditBackspace(ComlinState* const l)
 {
     if (l->pos > 0 && l->len > 0) {
-        memmove(l->buf + l->pos - 1, l->buf + l->pos, l->len - l->pos);
+        memmove(l->buf + l->pos - 1U, l->buf + l->pos, l->len - l->pos);
         --l->pos;
         --l->len;
         l->buf[l->len] = '\0';
@@ -821,14 +830,14 @@ comlinEditDeletePrevWord(ComlinState* const l)
 {
     size_t old_pos = l->pos;
 
-    while (l->pos > 0 && l->buf[l->pos - 1] == ' ') {
+    while (l->pos > 0 && l->buf[l->pos - 1U] == ' ') {
         --l->pos;
     }
-    while (l->pos > 0 && l->buf[l->pos - 1] != ' ') {
+    while (l->pos > 0 && l->buf[l->pos - 1U] != ' ') {
         --l->pos;
     }
     const size_t diff = old_pos - l->pos;
-    memmove(l->buf + l->pos, l->buf + old_pos, l->len - old_pos + 1);
+    memmove(l->buf + l->pos, l->buf + old_pos, l->len + 1U - old_pos);
     l->len -= diff;
     refreshLine(l);
 }
@@ -852,7 +861,7 @@ comlinNewState(const int stdin_fd,
     l->buflen = buflen;
     l->prompt = prompt;
     l->plen = strlen(prompt);
-    l->cols = getColumns(stdin_fd, stdout_fd);
+    l->cols = (size_t)getColumns(stdin_fd, stdout_fd);
 
     // Buffer starts empty
     l->buf[0] = '\0';
@@ -902,7 +911,7 @@ comlinEditFeed(ComlinState* const l)
     char c = '\0';
     char seq[3] = {'\0', '\0', '\0'};
 
-    const int nread = read(l->ifd, &c, 1);
+    const ssize_t nread = read(l->ifd, &c, 1);
     if (nread <= 0) {
         return NULL;
     }
@@ -950,10 +959,10 @@ comlinEditFeed(ComlinState* const l)
         break;
     case CTRL_T: // Ctrl-t, swaps current character with previous
         if (l->pos > 0 && l->pos < l->len) {
-            const char aux = l->buf[l->pos - 1];
-            l->buf[l->pos - 1] = l->buf[l->pos];
+            const char aux = l->buf[l->pos - 1U];
+            l->buf[l->pos - 1U] = l->buf[l->pos];
             l->buf[l->pos] = aux;
-            if (l->pos != l->len - 1) {
+            if (l->pos != l->len - 1U) {
                 ++l->pos;
             }
             refreshLine(l);
@@ -1210,7 +1219,7 @@ comlinHistoryAdd(ComlinState* const state, const char* line)
 
     // Don't add duplicated lines
     if (state->history_len &&
-        !strcmp(state->history[state->history_len - 1], line)) {
+        !strcmp(state->history[state->history_len - 1U], line)) {
         return 0;
     }
 
@@ -1224,7 +1233,7 @@ comlinHistoryAdd(ComlinState* const state, const char* line)
         free(state->history[0]);
         memmove(state->history,
                 state->history + 1,
-                sizeof(char*) * (state->history_max_len - 1));
+                sizeof(char*) * (state->history_max_len - 1U));
         --state->history_len;
     }
     state->history[state->history_len] = linecopy;
@@ -1233,13 +1242,13 @@ comlinHistoryAdd(ComlinState* const state, const char* line)
 }
 
 int
-comlinHistorySetMaxLen(ComlinState* const state, int len)
+comlinHistorySetMaxLen(ComlinState* const state, const size_t len)
 {
     if (len < 1) {
         return 0;
     }
     if (state->history) {
-        int tocopy = state->history_len;
+        size_t tocopy = state->history_len;
 
         char** new_history = (char**)malloc(sizeof(char*) * len);
         if (new_history == NULL) {
@@ -1248,7 +1257,7 @@ comlinHistorySetMaxLen(ComlinState* const state, int len)
 
         // If we can't copy everything, free the elements we'll not use
         if (len < tocopy) {
-            for (int j = 0; j < tocopy - len; ++j) {
+            for (size_t j = 0U; j < tocopy - len; ++j) {
                 free(state->history[j]);
             }
             tocopy = len;
@@ -1277,7 +1286,7 @@ comlinHistorySave(const ComlinState* const state, const char* filename)
         return -1;
     }
     chmod(filename, S_IRUSR | S_IWUSR);
-    for (int j = 0; j < state->history_len; ++j) {
+    for (size_t j = 0U; j < state->history_len; ++j) {
         fprintf(fp, "%s\n", state->history[j]);
     }
     fclose(fp);
@@ -1312,7 +1321,7 @@ void
 comlinFreeState(ComlinState* const state)
 {
     // Free history
-    for (int j = 0; j < state->history_len; ++j) {
+    for (size_t j = 0U; j < state->history_len; ++j) {
         free(state->history[j]);
     }
     free(state->history);

@@ -45,7 +45,7 @@ printKeyCodesLoop(void)
     while (1) {
         // Read an input character
         char c = '\0';
-        const int nread = read(STDIN_FILENO, &c, 1);
+        const ssize_t nread = read(STDIN_FILENO, &c, 1);
         if (nread <= 0) {
             continue;
         }
@@ -182,7 +182,7 @@ main(int argc, char** argv)
         } else if (!strncmp(line, "/historylen", 11)) {
             // The "/historylen" command will change the history len
             int len = atoi(line + 11);
-            comlinHistorySetMaxLen(state, len);
+            comlinHistorySetMaxLen(state, (size_t)len);
         } else if (!strncmp(line, "/mask", 5)) {
             comlinMaskModeEnable(state);
         } else if (!strncmp(line, "/unmask", 7)) {
