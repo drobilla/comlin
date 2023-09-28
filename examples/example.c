@@ -37,8 +37,8 @@ printKeyCodesLoop(void)
       "Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
 
     // Start an edit just to set the terminal to raw mode
-    ComlinState* const state = comlin_new_state(0, 1, "");
-    comlin_edit_start(state);
+    ComlinState* const state = comlin_new_state(0, 1);
+    comlin_edit_start(state, "> ");
 
     // Ignore it and process input keys ourselves
     while (1) {
@@ -98,7 +98,7 @@ main(int argc, char** argv)
         }
     }
 
-    ComlinState* const state = comlin_new_state(0, 1, "hello>");
+    ComlinState* const state = comlin_new_state(0, 1);
     if (multiline) {
         comlin_set_multi_line(state, 1);
     }
@@ -131,7 +131,7 @@ main(int argc, char** argv)
             /* Asynchronous mode using the multiplexing API: wait for
              * data on stdin, and simulate async data coming from some source
              * using the select(2) timeout. */
-            comlin_edit_start(state);
+            comlin_edit_start(state, "hello> ");
             while (1) {
                 fd_set readfds;
                 struct timeval tv;

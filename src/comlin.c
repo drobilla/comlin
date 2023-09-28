@@ -526,18 +526,17 @@ ab_free(struct abuf* ab)
 static void
 refresh_single_line(ComlinState const* const l, unsigned const flags)
 {
-    size_t const plen = strlen(l->prompt);
     int const fd = l->ofd;
 
     char* buf = l->buf.data;
     size_t len = l->buf.length;
     size_t pos = l->pos;
-    while ((plen + pos) >= l->cols) {
+    while (l->plen + pos >= l->cols) {
         ++buf;
         --len;
         --pos;
     }
-    while (plen + len > l->cols) {
+    while (l->plen + len > l->cols) {
         --len;
     }
 
@@ -549,7 +548,7 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
 
     if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Write the prompt and the current buffer content
-        ab_append(&ab, l->prompt, strlen(l->prompt));
+        ab_append(&ab, l->prompt, l->plen);
         if (l->maskmode) {
             while (len--) {
                 ab_append(&ab, "*", 1);
@@ -565,7 +564,7 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
 
     if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Move cursor to original position
-        snprintf(seq, sizeof(seq), "\r\x1B[%dC", (int)(pos + plen));
+        snprintf(seq, sizeof(seq), "\r\x1B[%dC", (int)(pos + l->plen));
         ab_append(&ab, seq, strlen(seq));
     }
 
@@ -586,11 +585,8 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
 static void
 refresh_multi_line(ComlinState* const l, unsigned const flags)
 {
-    size_t const plen = strlen(l->prompt);
-    size_t rows =
-      (plen + l->buf.length + l->cols - 1U) / l->cols; // Rows in current buf
-    size_t const rpos =
-      (plen + l->oldpos + l->cols) / l->cols; // Cursor relative row
+    size_t rows = (l->plen + l->buf.length + l->cols - 1U) / l->cols;
+    size_t const rpos = (l->plen + l->oldpos + l->cols) / l->cols;
     size_t const old_rows = l->oldrows;
     int const fd = l->ofd;
 
@@ -623,7 +619,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
 
     if (flags & REFRESH_WRITE) {
         // Write the prompt and the current buffer content
-        ab_append(&ab, l->prompt, strlen(l->prompt));
+        ab_append(&ab, l->prompt, l->plen);
         if (l->maskmode) {
             for (unsigned i = 0U; i < l->buf.length; ++i) {
                 ab_append(&ab, "*", 1);
@@ -635,7 +631,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
         /* If we are at the very end of the screen with our prompt, we need to
          * emit a newline and move the prompt to the first column. */
         if (l->pos && l->pos == l->buf.length &&
-            (l->pos + plen) % l->cols == 0) {
+            (l->pos + l->plen) % l->cols == 0) {
             ab_append(&ab, "\n", 1);
             snprintf(seq, 64, "\r");
             ab_append(&ab, seq, strlen(seq));
@@ -647,7 +643,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
 
         // Move cursor to right position
         size_t const rpos2 =
-          (plen + l->pos + l->cols) / l->cols; // Current cursor relative row
+          (l->plen + l->pos + l->cols) / l->cols; // Current cursor relative row
 
         // Go up till we reach the expected position
         if (rows > rpos2) {
@@ -656,7 +652,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
         }
 
         // Set column
-        size_t const col = (plen + l->pos) % l->cols;
+        size_t const col = (l->plen + l->pos) % l->cols;
         if (col) {
             snprintf(seq, 64, "\r\x1B[%zuC", col);
         } else {
@@ -874,9 +870,7 @@ comlin_edit_delete_prev_word(ComlinState* const l)
 }
 
 ComlinState*
-comlin_new_state(int const stdin_fd,
-                 int const stdout_fd,
-                 char const* const prompt)
+comlin_new_state(int const stdin_fd, int const stdout_fd)
 {
     ComlinState* const l = (ComlinState*)calloc(1, sizeof(ComlinState));
     if (!l) {
@@ -887,8 +881,6 @@ comlin_new_state(int const stdin_fd,
     l->ofd = stdout_fd;
     l->dumb = is_unsupported_term();
     l->history_max_len = COMLIN_DEFAULT_HISTORY_MAX_LEN;
-    l->prompt = prompt;
-    l->plen = strlen(prompt);
     l->cols = (size_t)get_columns(stdin_fd, stdout_fd);
     l->buf.data = (char*)calloc(1, l->cols);
     l->buf.size = l->cols;
@@ -897,13 +889,12 @@ comlin_new_state(int const stdin_fd,
 }
 
 ComlinStatus
-comlin_edit_start(ComlinState* const l)
+comlin_edit_start(ComlinState* const l, char const* const prompt)
 {
     // Enter raw mode
     if (enable_raw_mode(l) == -1) {
         return COMLIN_BAD_TERMINAL;
     }
-
     // Reset line state
     l->buf.data[0] = '\0';
     l->pos = 0U;
@@ -915,7 +906,9 @@ comlin_edit_start(ComlinState* const l)
      * initially is just an empty string. */
     comlin_history_add(l, "");
 
-    // Write prompt
+    // Set and write prompt
+    l->prompt = prompt;
+    l->plen = strlen(prompt);
     return write_string(l->ofd, l->prompt, l->plen);
 }
 
@@ -1115,7 +1108,7 @@ comlin_read_line(ComlinState* const state, char const* const prompt)
     state->prompt = prompt;
     state->plen = strlen(prompt);
 
-    ComlinStatus st0 = comlin_edit_start(state);
+    ComlinStatus st0 = comlin_edit_start(state, prompt);
     ComlinStatus st1 = COMLIN_SUCCESS;
     if (!st0) {
         do {

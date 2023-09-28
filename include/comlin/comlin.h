@@ -69,7 +69,7 @@ typedef struct ComlinStateImpl ComlinState;
  * @return A new state that must be freed with #comlin_free_state.
  */
 COMLIN_API ComlinState*
-comlin_new_state(int stdin_fd, int stdout_fd, char const* prompt);
+comlin_new_state(int stdin_fd, int stdout_fd);
 
 /** Free a terminal session.
  *
@@ -105,7 +105,7 @@ comlin_free_state(ComlinState* state);
  * terminal fails.
  */
 COMLIN_API ComlinStatus
-comlin_edit_start(ComlinState* l);
+comlin_edit_start(ComlinState* l, char const* prompt);
 
 /** Read input during a non-blocking line edit.
  *
