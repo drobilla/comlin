@@ -462,35 +462,35 @@ comlinAddCompletion(ComlinCompletions* lc, const char* str)
  * write all the escape sequences in a buffer and flush them to the standard
  * output in a single call, to avoid flickering effects. */
 struct abuf {
-    char* b;
-    size_t len;
+    char* data;    ///< Pointer to string buffer
+    size_t length; ///< Length of string (not greater than size)
+    size_t size;   ///< Size of data
 };
-
-static void
-abInit(struct abuf* ab)
-{
-    ab->b = NULL;
-    ab->len = 0;
-}
 
 static void
 abAppend(struct abuf* const ab, const char* const s, const size_t len)
 {
-    char* buf = (char*)realloc(ab->b, ab->len + len);
+    const size_t new_length = ab->length + len;
+    const size_t needed_size = new_length + 1U;
+    if (needed_size > ab->size) {
+        char* const new_data = (char*)realloc(ab->data, needed_size);
+        if (!new_data) {
+            return;
+        }
 
-    if (buf == NULL) {
-        return;
+        ab->data = new_data;
+        ab->size = needed_size;
     }
 
-    memcpy(buf + ab->len, s, len);
-    ab->b = buf;
-    ab->len += len;
+    memcpy(ab->data + ab->length, s, len);
+    ab->data[new_length] = '\0';
+    ab->length = new_length;
 }
 
 static void
 abFree(struct abuf* ab)
 {
-    free(ab->b);
+    free(ab->data);
 }
 
 /* Single line low level line refresh.
@@ -509,7 +509,6 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
     char* buf = l->buf;
     size_t len = l->len;
     size_t pos = l->pos;
-    struct abuf ab;
 
     while ((plen + pos) >= l->cols) {
         ++buf;
@@ -520,8 +519,8 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
         --len;
     }
 
-    abInit(&ab);
     // Cursor to left edge
+    struct abuf ab = {NULL, 0U, 0U};
     snprintf(seq, sizeof(seq), "\r");
     abAppend(&ab, seq, strlen(seq));
 
@@ -547,7 +546,7 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
         abAppend(&ab, seq, strlen(seq));
     }
 
-    if (write_string(fd, ab.b, ab.len)) {
+    if (write_string(fd, ab.data, ab.length)) {
         // Failed to write to terminal, this is bad and should be reported...
     }
 
@@ -571,14 +570,14 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
     size_t rpos = (plen + l->oldpos + l->cols) / l->cols; // Cursor relative row
     size_t old_rows = l->oldrows;
     int fd = l->ofd;
-    struct abuf ab;
 
     l->oldrows = rows;
 
+    // We'll build the update here, then send it all in a single write
+    struct abuf ab = {NULL, 0U, 0U};
+
     /* First step: clear all the lines used before. To do so start by
      * going to the last row. */
-    abInit(&ab);
-
     if (flags & REFRESH_CLEAN) {
         if (old_rows > rpos) {
             snprintf(seq, 64, "\x1B[%zuB", old_rows - rpos);
@@ -643,7 +642,7 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
 
     l->oldpos = l->pos;
 
-    if (write_string(fd, ab.b, ab.len)) {
+    if (write_string(fd, ab.data, ab.length)) {
         // Failed to write to terminal, this is bad and should be reported...
     }
 
