@@ -16,8 +16,8 @@ static void
 completion(const char* buf, ComlinCompletions* lc)
 {
     if (buf[0] == 'h') {
-        comlinAddCompletion(lc, "hello");
-        comlinAddCompletion(lc, "hello there");
+        comlin_add_completion(lc, "hello");
+        comlin_add_completion(lc, "hello there");
     }
 }
 
@@ -37,8 +37,8 @@ printKeyCodesLoop(void)
       "Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
 
     // Start an edit just to set the terminal to raw mode
-    ComlinState* const state = comlinNewState(0, 1, "");
-    comlinEditStart(state);
+    ComlinState* const state = comlin_new_state(0, 1, "");
+    comlin_edit_start(state);
 
     // Ignore it and process input keys ourselves
     while (1) {
@@ -65,8 +65,8 @@ printKeyCodesLoop(void)
     }
 
     // Reset terminal mode
-    comlinEditStop(state);
-    comlinFreeState(state);
+    comlin_edit_stop(state);
+    comlin_free_state(state);
 }
 
 int
@@ -97,18 +97,18 @@ main(int argc, char** argv)
         }
     }
 
-    ComlinState* const state = comlinNewState(0, 1, "hello>");
+    ComlinState* const state = comlin_new_state(0, 1, "hello>");
     if (multiline) {
-        comlinSetMultiLine(state, 1);
+        comlin_set_multi_line(state, 1);
     }
 
     /* Set the completion callback. This will be called every time the
      * user uses the <tab> key. */
-    comlinSetCompletionCallback(state, completion);
+    comlin_set_completion_callback(state, completion);
 
     /* Load history from file. The history file is just a plain text file
      * where entries are separated by newlines. */
-    comlinHistoryLoad(state, "history.txt"); // Load the history at startup
+    comlin_history_load(state, "history.txt"); // Load the history at startup
 
     /* Now this is the main loop of the typical comlin-based application.
      * The call to comlin() will block as long as the user types something
@@ -119,9 +119,9 @@ main(int argc, char** argv)
 
     while (1) {
         if (!async) {
-            const ComlinStatus st = comlinReadLine(state, "hello> ");
+            const ComlinStatus st = comlin_read_line(state, "hello> ");
             if (!st) {
-                line = comlinText(state);
+                line = comlin_text(state);
             } else {
                 line = NULL;
                 break;
@@ -130,7 +130,7 @@ main(int argc, char** argv)
             /* Asynchronous mode using the multiplexing API: wait for
              * data on stdin, and simulate async data coming from some source
              * using the select(2) timeout. */
-            comlinEditStart(state);
+            comlin_edit_start(state);
             while (1) {
                 fd_set readfds;
                 struct timeval tv;
@@ -147,30 +147,30 @@ main(int argc, char** argv)
                 }
 
                 if (retval) {
-                    const ComlinStatus st = comlinEditFeed(state);
+                    const ComlinStatus st = comlin_edit_feed(state);
                     if (st == COMLIN_INTERRUPTED || st == COMLIN_END) {
                         line = NULL;
                         break;
                     }
 
                     if (!st) {
-                        line = comlinText(state);
+                        line = comlin_text(state);
                         break;
                     }
                 } else {
                     // Timeout occurred
                     static int counter = 0;
-                    comlinHide(state);
+                    comlin_hide(state);
                     printString("Async output ");
                     char decimal[24] = {0};
                     snprintf(decimal, sizeof(decimal), "%d\n", counter++);
                     printString(decimal);
-                    comlinShow(state);
+                    comlin_show(state);
                 }
             }
-            comlinEditStop(state);
+            comlin_edit_stop(state);
             if (line == NULL) { // Ctrl+D/C
-                comlinFreeState(state);
+                comlin_free_state(state);
                 return 0;
             }
         }
@@ -180,16 +180,16 @@ main(int argc, char** argv)
             printString("echo: '");
             printString(line);
             printString("'\n");
-            comlinHistoryAdd(state, line);           // Add to the history
-            comlinHistorySave(state, "history.txt"); // Save history to disk
+            comlin_history_add(state, line);           // Add to the history
+            comlin_history_save(state, "history.txt"); // Save history to disk
         } else if (!strncmp(line, "/historylen", 11)) {
             // The "/historylen" command will change the history len
             int len = atoi(line + 11);
-            comlinHistorySetMaxLen(state, (size_t)len);
+            comlin_history_set_max_len(state, (size_t)len);
         } else if (!strncmp(line, "/mask", 5)) {
-            comlinMaskModeEnable(state);
+            comlin_mask_mode_enable(state);
         } else if (!strncmp(line, "/unmask", 7)) {
-            comlinMaskModeDisable(state);
+            comlin_mask_mode_disable(state);
         } else if (line[0] == '/') {
             printString("Unreconized command: ");
             printString(line);
@@ -197,6 +197,6 @@ main(int argc, char** argv)
         }
     }
 
-    comlinFreeState(state);
+    comlin_free_state(state);
     return 0;
 }
