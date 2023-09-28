@@ -718,7 +718,8 @@ comlin_edit_insert(ComlinState* const l, char const c)
         // Insert at end of line
         ab_append(&l->buf, &c, 1U);
         ++l->pos;
-        if (!l->mlmode && l->plen + l->buf.length < l->cols) {
+        if ((!l->mlmode || l->oldrows <= 1U) &&
+            l->plen + l->buf.length < l->cols) {
             // Avoid a full update of the line in the trivial case
             char const d = (char)(l->maskmode ? '*' : c);
             return write(l->ofd, &d, 1) == 1 ? COMLIN_READING
