@@ -522,11 +522,12 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
         --len;
     }
 
-    // Cursor to left edge
-    char seq[64] = {0};
+    // We'll build the update here, then send it all in a single write
     struct abuf ab = {NULL, 0U, 0U};
-    snprintf(seq, sizeof(seq), "\r");
-    ab_append(&ab, seq, strlen(seq));
+    char seq[64] = {0};
+
+    // Move cursor to left edge
+    ab_append(&ab, "\r", 1);
 
     if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Write the prompt and the current buffer content
@@ -541,8 +542,7 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
     }
 
     // Erase to right
-    snprintf(seq, sizeof(seq), "\x1B[0K");
-    ab_append(&ab, seq, strlen(seq));
+    ab_append(&ab, "\x1B[0K", 4);
 
     if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Move cursor to original position
@@ -588,8 +588,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
 
         // For each row, clear it, then move up
         for (size_t j = 1U; j < old_rows; ++j) {
-            snprintf(seq, 64, "\r\x1B[0K\x1B[1A");
-            ab_append(&ab, seq, strlen(seq));
+            ab_append(&ab, "\r\x1B[0K\x1B[1A", 9U);
         }
     }
 
@@ -608,16 +607,13 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
         }
 
         // Erase to right
-        snprintf(seq, sizeof(seq), "\x1B[0K");
-        ab_append(&ab, seq, strlen(seq));
+        ab_append(&ab, "\x1B[0K", 4U);
 
         /* If we are at the very end of the screen with our prompt, we need to
          * emit a newline and move the prompt to the first column. */
         if (l->pos && l->pos == l->buf.length &&
             (l->pos + l->plen) % l->cols == 0) {
-            ab_append(&ab, "\n", 1);
-            snprintf(seq, 64, "\r");
-            ab_append(&ab, seq, strlen(seq));
+            ab_append(&ab, "\n\r", 2);
             ++rows;
             if (rows > l->oldrows) {
                 l->oldrows = rows;
