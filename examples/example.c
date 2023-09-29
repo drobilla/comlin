@@ -170,7 +170,7 @@ main(int argc, char** argv)
                 }
             }
             comlin_edit_stop(state);
-            if (line == NULL) { // Ctrl+D/C
+            if (!line) { // Ctrl+D/C
                 comlin_free_state(state);
                 return 0;
             }
