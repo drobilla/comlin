@@ -81,27 +81,28 @@ refresh_line_with_completion(ComlinState* ls,
 static void
 refresh_line_with_flags(ComlinState* l, unsigned flags);
 
-enum KEY_ACTION {
-    KEY_NULL = 0,   // NULL
-    CTRL_A = 1,     // Ctrl+a
-    CTRL_B = 2,     // Ctrl-b
-    CTRL_C = 3,     // Ctrl-c
-    CTRL_D = 4,     // Ctrl-d
-    CTRL_E = 5,     // Ctrl-e
-    CTRL_F = 6,     // Ctrl-f
-    CTRL_H = 8,     // Ctrl-h
-    TAB = 9,        // Tab
-    CTRL_K = 11,    // Ctrl+k
-    CTRL_L = 12,    // Ctrl+l
-    ENTER = 13,     // Enter
-    CTRL_N = 14,    // Ctrl-n
-    CTRL_P = 16,    // Ctrl-p
-    CTRL_T = 20,    // Ctrl-t
-    CTRL_U = 21,    // Ctrl+u
-    CTRL_W = 23,    // Ctrl+w
-    ESC = 27,       // Escape
-    BACKSPACE = 127 // Backspace
-};
+typedef enum {
+    KEY_NULL = 0, // ^@ (NUL)
+    CTRL_A = 1,   // ^A (SOH)
+    CTRL_B = 2,   // ^B (STX)
+    CTRL_C = 3,   // ^C (ETX)
+    CTRL_D = 4,   // ^D (EOT)
+    CTRL_E = 5,   // ^E (ENQ)
+    CTRL_F = 6,   // ^F (ACK)
+    CTRL_H = 8,   // ^H (BS)
+    TAB = 9,      // ^I / Tab (HT)
+    LFEED = 10,   // ^J / Enter (LF)
+    CTRL_K = 11,  // ^K (VT)
+    CTRL_L = 12,  // ^L (FF)
+    CRETURN = 13, // ^M / Return (CR)
+    CTRL_N = 14,  // ^N (SO)
+    CTRL_P = 16,  // ^P (DLE)
+    CTRL_T = 20,  // ^T (DC4)
+    CTRL_U = 21,  // ^U (NAK)
+    CTRL_W = 23,  // ^W (ETB)
+    ESC = 27,     // ^[ / Escape (ESC)
+    DEL = 127     // ^? (DEL) (Usually Backspace key)
+} ControlCharacter;
 
 typedef unsigned ComlinRefreshFlags;
 
@@ -942,13 +943,13 @@ static ComlinStatus
 comlin_edit_read_dumb(ComlinState* const l, char const c)
 {
     switch (c) {
-    case '\n':
-    case '\r':
-        return COMLIN_SUCCESS;
     case CTRL_C:
         return COMLIN_INTERRUPTED;
     case CTRL_D:
         return COMLIN_END;
+    case LFEED:
+    case CRETURN:
+        return COMLIN_SUCCESS;
     default:
         break;
     }
@@ -990,8 +991,8 @@ comlin_edit_feed(ComlinState* const l)
     }
 
     switch (c) {
-    case '\n':
-    case ENTER: // Enter
+    case LFEED:
+    case CRETURN:
         comlin_edit_history_pop(l);
         if (l->mlmode) {
             comlin_edit_move_end(l);
@@ -1003,8 +1004,8 @@ comlin_edit_feed(ComlinState* const l)
         break;
     case CTRL_C:
         return COMLIN_INTERRUPTED;
-    case BACKSPACE: // Backspace
-    case CTRL_H:    // Ctrl-h
+    case DEL:    // Backspace
+    case CTRL_H: // Ctrl-h
         comlin_edit_backspace(l);
         break;
     case CTRL_D: /* ctrl-d, remove char at right of cursor, or if the
