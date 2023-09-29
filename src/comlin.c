@@ -1052,9 +1052,11 @@ comlin_edit_feed(ComlinState* const l)
         refresh_line(l);
         break;
     case CTRL_K: // Ctrl+k, delete from current to end of line
-        l->buf.data[l->pos] = '\0';
-        l->buf.length = l->pos;
-        refresh_line(l);
+        if (l->pos < l->buf.length) {
+            l->buf.data[l->pos] = '\0';
+            l->buf.length = l->pos;
+            refresh_line(l);
+        }
         break;
     case CTRL_A: // Ctrl+a, go to the start of the line
         comlin_edit_move_home(l);

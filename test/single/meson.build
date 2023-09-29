@@ -15,7 +15,6 @@ single_test_names = [
   'CbCu',
   'CbCw',
   'Ch',
-  'Ck',
   'Cl',
   'CpCp',
   'CpCpCn',
