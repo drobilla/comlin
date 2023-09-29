@@ -578,28 +578,25 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
     struct abuf ab = {NULL, 0U, 0U};
     char seq[64] = {0};
 
-    /* First step: clear all the lines used before. To do so start by
-     * going to the last row. */
+    // First clear all the old used rows
     if (flags & REFRESH_CLEAN) {
+        // Go to the last row
         if (old_rows > rpos) {
             snprintf(seq, 64, "\x1B[%zuB", old_rows - rpos);
             ab_append(&ab, seq, strlen(seq));
         }
 
-        // Now for every row clear it, go up
+        // For each row, clear it, then move up
         for (size_t j = 1U; j < old_rows; ++j) {
             snprintf(seq, 64, "\r\x1B[0K\x1B[1A");
             ab_append(&ab, seq, strlen(seq));
         }
     }
 
-    if (flags & REFRESH_ALL) {
-        // Clean the top line
-        snprintf(seq, 64, "\r\x1B[0K");
-        ab_append(&ab, seq, strlen(seq));
-    }
-
     if (flags & REFRESH_WRITE) {
+        // Move cursor to left edge
+        ab_append(&ab, "\r", 1);
+
         // Write the prompt and the current buffer content
         ab_append(&ab, l->prompt, l->plen);
         if (l->maskmode) {
@@ -609,6 +606,10 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
         } else {
             ab_append(&ab, l->buf.data, l->buf.length);
         }
+
+        // Erase to right
+        snprintf(seq, sizeof(seq), "\x1B[0K");
+        ab_append(&ab, seq, strlen(seq));
 
         /* If we are at the very end of the screen with our prompt, we need to
          * emit a newline and move the prompt to the first column. */
