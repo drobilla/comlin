@@ -816,7 +816,7 @@ comlin_edit_history_pop(ComlinState* const state)
 static ComlinStatus
 comlin_edit_delete(ComlinState* const l)
 {
-    if (l->buf.length && l->pos < l->buf.length) {
+    if (l->pos < l->buf.length) {
         memmove(l->buf.data + l->pos,
                 l->buf.data + l->pos + 1U,
                 l->buf.length - l->pos - 1U);
@@ -825,6 +825,17 @@ comlin_edit_delete(ComlinState* const l)
         return refresh_line(l);
     }
     return COMLIN_SUCCESS;
+}
+
+static ComlinStatus
+comlin_edit_eof(ComlinState* const l)
+{
+    if (!l->buf.length) {
+        comlin_edit_history_pop(l);
+        return COMLIN_END;
+    }
+
+    return comlin_edit_delete(l);
 }
 
 // Backspace implementation
@@ -1013,11 +1024,7 @@ comlin_edit_feed(ComlinState* const l)
     case CTRL_H:
         return control_status(comlin_edit_backspace(l));
     case CTRL_D:
-        if (l->buf.length > 0) {
-            return control_status(comlin_edit_delete(l));
-        }
-        comlin_edit_history_pop(l);
-        return COMLIN_END;
+        return control_status(comlin_edit_eof(l));
     case CTRL_E:
         return control_status(comlin_edit_move_end(l));
     case CTRL_T:
