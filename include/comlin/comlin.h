@@ -168,7 +168,7 @@ comlin_text(ComlinState const* l);
  * if necessary.  Then, the application can write its own output, but
  * #comlin_edit_feed can't be called until the edit is resumed by #comlin_show.
  */
-COMLIN_API void
+COMLIN_API ComlinStatus
 comlin_hide(ComlinState* l);
 
 /** Resume a non-blocking line edit.
@@ -177,7 +177,7 @@ comlin_hide(ComlinState* l);
  * line with the cursor where it was.  Then, #comlin_edit_feed can be called
  * again to read more input.
  */
-COMLIN_API void
+COMLIN_API ComlinStatus
 comlin_show(ComlinState* l);
 
 /**
@@ -264,7 +264,7 @@ comlin_history_load(ComlinState* state, char const* filename);
 */
 
 /// Clear the screen
-COMLIN_API void
+COMLIN_API ComlinStatus
 comlin_clear_screen(ComlinState* state);
 
 /// Set whether to use multi-line mode
