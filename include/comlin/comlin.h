@@ -41,6 +41,8 @@ typedef enum {
     COMLIN_READING,      ///< Reading continues
     COMLIN_END,          ///< End of input reached
     COMLIN_INTERRUPTED,  ///< Operation interrupted
+    COMLIN_NO_MEMORY,    ///< Out of memory
+    COMLIN_NO_FILE,      ///< File not found
     COMLIN_BAD_READ,     ///< Failed to read from input
     COMLIN_BAD_WRITE,    ///< Failed to write to output
     COMLIN_BAD_TERMINAL, ///< Failed to configure terminal
@@ -238,21 +240,21 @@ comlin_add_completion(ComlinCompletions* lc, char const* str);
  * The new entry will be added to the history in memory, which can later be
  * saved explicitly with #comlin_history_save.
  */
-COMLIN_API int
+COMLIN_API ComlinStatus
 comlin_history_add(ComlinState* state, char const* line);
 
 /** Save the history in the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
-COMLIN_API int
+COMLIN_API ComlinStatus
 comlin_history_save(ComlinState const* state, char const* filename);
 
 /** Load the history from the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
-COMLIN_API int
+COMLIN_API ComlinStatus
 comlin_history_load(ComlinState* state, char const* filename);
 
 /**

@@ -181,16 +181,16 @@ write_string(int const fd, char const* const buf, size_t const count)
 }
 
 /// Set terminal to raw input mode and preserve the original settings
-static int
+static ComlinStatus
 enable_raw_mode(ComlinState* const state)
 {
     if (!isatty(state->ifd)) {
-        return 0;
+        return COMLIN_SUCCESS;
     }
 
     // Save original terminal attributes
     if (tcgetattr(state->ifd, &state->cooked) == -1) {
-        return -1;
+        return COMLIN_BAD_TERMINAL;
     }
 
     struct termios raw = state->cooked;
@@ -211,7 +211,7 @@ enable_raw_mode(ComlinState* const state)
     // Set raw terminal mode after flushing
     int const rc = tcsetattr(state->ifd, TCSAFLUSH, &raw);
     state->rawmode = !rc;
-    return rc;
+    return rc ? COMLIN_BAD_TERMINAL : COMLIN_SUCCESS;
 }
 
 static ComlinStatus
@@ -875,9 +875,11 @@ ComlinStatus
 comlin_edit_start(ComlinState* const l, char const* const prompt)
 {
     // Enter raw mode
-    if (enable_raw_mode(l) == -1) {
-        return COMLIN_BAD_TERMINAL;
+    ComlinStatus const st = enable_raw_mode(l);
+    if (st) {
+        return st;
     }
+
     // Reset line state
     l->buf.data[0] = '\0';
     l->pos = 0U;
@@ -1118,18 +1120,18 @@ comlin_read_line(ComlinState* const state, char const* const prompt)
  * histories, but will work well for a few hundred of entries.
  *
  * Using a circular buffer is smarter, but a bit more complex to handle. */
-int
+ComlinStatus
 comlin_history_add(ComlinState* const state, char const* const line)
 {
     if (state->history_max_len == 0) {
-        return 0;
+        return COMLIN_SUCCESS;
     }
 
     // Initialization on first call
     if (!state->history) {
         state->history = (char**)malloc(sizeof(char*) * state->history_max_len);
         if (!state->history) {
-            return 0;
+            return COMLIN_NO_MEMORY;
         }
         memset(state->history, 0, (sizeof(char*) * state->history_max_len));
     }
@@ -1137,15 +1139,16 @@ comlin_history_add(ComlinState* const state, char const* const line)
     // Don't add duplicated lines
     if (state->history_len &&
         !strcmp(state->history[state->history_len - 1U], line)) {
-        return 0;
+        return COMLIN_SUCCESS;
     }
 
-    /* Add an heap allocated copy of the line in the history.
-     * If we reached the max length, remove the older line. */
+    // Add an heap allocated copy of the line in the history
     char* const linecopy = strdup(line);
     if (!linecopy) {
-        return 0;
+        return COMLIN_NO_MEMORY;
     }
+
+    // If we reached the max length, remove the older line
     if (state->history_len == state->history_max_len) {
         free(state->history[0]);
         memmove(state->history,
@@ -1153,36 +1156,37 @@ comlin_history_add(ComlinState* const state, char const* const line)
                 sizeof(char*) * (state->history_max_len - 1U));
         --state->history_len;
     }
+
     state->history[state->history_len] = linecopy;
     ++state->history_len;
-    return 1;
+    return COMLIN_SUCCESS;
 }
 
-int
+ComlinStatus
 comlin_history_save(ComlinState const* const state, char const* const filename)
 {
     mode_t const old_umask = umask(S_IXUSR | S_IRWXG | S_IRWXO);
     FILE* const fp = fopen(filename, "w");
     umask(old_umask);
     if (!fp) {
-        return -1;
+        return COMLIN_NO_FILE;
     }
     chmod(filename, S_IRUSR | S_IWUSR);
     for (size_t j = 0U; j < state->history_len; ++j) {
         fprintf(fp, "%s\n", state->history[j]);
     }
     fclose(fp);
-    return 0;
+    return COMLIN_SUCCESS;
 }
 
-int
+ComlinStatus
 comlin_history_load(ComlinState* const state, char const* const filename)
 {
     FILE* const fp = fopen(filename, "r");
     char buf[COMLIN_MAX_LINE];
 
     if (!fp) {
-        return -1;
+        return COMLIN_NO_FILE;
     }
 
     while (fgets(buf, COMLIN_MAX_LINE, fp) != NULL) {
@@ -1196,7 +1200,7 @@ comlin_history_load(ComlinState* const state, char const* const filename)
         comlin_history_add(state, buf);
     }
     fclose(fp);
-    return 0;
+    return COMLIN_SUCCESS;
 }
 
 void
