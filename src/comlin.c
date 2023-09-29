@@ -498,6 +498,21 @@ ab_free(struct abuf* ab)
     free(ab->data);
 }
 
+static void
+append_line_text(struct abuf* const buffer,
+                 char const* const text,
+                 size_t const length,
+                 bool const masked)
+{
+    if (masked) {
+        for (size_t i = 0U; i < length; ++i) {
+            ab_append(buffer, "*", 1);
+        }
+    } else {
+        ab_append(buffer, text, length);
+    }
+}
+
 /* Single line low level line refresh.
  *
  * Rewrite the currently edited line accordingly to the buffer content,
@@ -532,13 +547,7 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
     if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Write the prompt and the current buffer content
         ab_append(&ab, l->prompt, l->plen);
-        if (l->maskmode) {
-            while (len--) {
-                ab_append(&ab, "*", 1);
-            }
-        } else {
-            ab_append(&ab, buf, len);
-        }
+        append_line_text(&ab, buf, len, l->maskmode);
     }
 
     // Erase to right
@@ -598,13 +607,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
 
         // Write the prompt and the current buffer content
         ab_append(&ab, l->prompt, l->plen);
-        if (l->maskmode) {
-            for (unsigned i = 0U; i < l->buf.length; ++i) {
-                ab_append(&ab, "*", 1);
-            }
-        } else {
-            ab_append(&ab, l->buf.data, l->buf.length);
-        }
+        append_line_text(&ab, l->buf.data, l->buf.length, l->maskmode);
 
         // Erase to right
         ab_append(&ab, "\x1B[0K", 4U);
