@@ -14,7 +14,7 @@ foreach name : single_test_names
   test(
     name,
     run_test_py,
-    args: [out_file, test_comlin, in_file],
-    suite: ['io', 'single'],
+    args: [out_file, test_comlin, '--multi', in_file],
+    suite: ['io', 'multi'],
   )
 endforeach
