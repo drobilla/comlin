@@ -82,7 +82,7 @@ ab_append(struct abuf* ab, char const* s, size_t len);
 
 static void
 refresh_line_with_completion(ComlinState* ls,
-                             ComlinCompletions* lc,
+                             ComlinCompletions const* lc,
                              unsigned flags);
 
 static void
@@ -347,24 +347,12 @@ free_completions(ComlinCompletions* const lc)
     }
 }
 
-/* Called by completeLine() and comlinShow() to render the current
- * edited line with the proposed completion. If the current completion table
- * is already available, it is passed as second argument, otherwise the
- * function will use the callback to obtain it.
- *
- * Flags are the same as refreshLine*(), that is REFRESH_* macros. */
+// Show the current line with the proposed completion
 static void
 refresh_line_with_completion(ComlinState* const ls,
-                             ComlinCompletions* lc,
+                             ComlinCompletions const* const lc,
                              unsigned const flags)
 {
-    // Obtain the table of completions if the caller didn't provide one
-    ComlinCompletions ctable = {0, NULL};
-    if (lc == NULL) {
-        ls->completion_callback(ls->buf.data, &ctable);
-        lc = &ctable;
-    }
-
     // Show the edited line with completion if possible, or just refresh
     if (ls->completion_idx < lc->len) {
         size_t const saved_pos = ls->pos;
@@ -376,11 +364,6 @@ refresh_line_with_completion(ComlinState* const ls,
         ls->pos = saved_pos;
     } else {
         refresh_line_with_flags(ls, flags);
-    }
-
-    // Free the completions table if needed
-    if (lc != &ctable) {
-        free_completions(&ctable);
     }
 }
 
@@ -702,7 +685,9 @@ void
 comlin_show(ComlinState* const l)
 {
     if (l->in_completion && l->buf.length) {
-        refresh_line_with_completion(l, NULL, REFRESH_WRITE);
+        ComlinCompletions completions = {0U, NULL};
+        l->completion_callback(l->buf.data, &completions);
+        refresh_line_with_completion(l, &completions, REFRESH_WRITE);
     } else {
         refresh_line_with_flags(l, REFRESH_WRITE);
     }
