@@ -30,6 +30,7 @@ common_test_names = [
   'CpCpCn',
   'CpCpCnCn',
   'CpCpCp',
+  'CpCpCuCp',
   'Cq',
   'Cr',
   'Cs',

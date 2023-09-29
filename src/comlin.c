@@ -943,6 +943,7 @@ comlin_edit_feed(ComlinState* const l)
     case ENTER: // Enter
         --l->history_len;
         free(l->history[l->history_len]);
+        l->history_index = 0U;
         if (l->mlmode) {
             comlin_edit_move_end(l);
         }
@@ -961,6 +962,7 @@ comlin_edit_feed(ComlinState* const l)
         } else {
             --l->history_len;
             free(l->history[l->history_len]);
+            l->history_index = 0U;
             return COMLIN_END;
         }
         break;
