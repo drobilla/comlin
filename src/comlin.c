@@ -771,7 +771,7 @@ typedef enum {
 
 // Substitute the currently edited line with the next or previous history entry
 static ComlinStatus
-comlin_edit_history_next(ComlinState* const l, ComlinHistoryDirection const dir)
+comlin_edit_history_step(ComlinState* const l, ComlinHistoryDirection const dir)
 {
     if (l->history_len > 1U) {
         // Update the current history entry before overwriting it with the next
@@ -803,6 +803,18 @@ comlin_edit_history_next(ComlinState* const l, ComlinHistoryDirection const dir)
     return COMLIN_SUCCESS;
 }
 
+static ComlinStatus
+comlin_edit_history_prev(ComlinState* const l)
+{
+    return comlin_edit_history_step(l, COMLIN_HISTORY_PREV);
+}
+
+static ComlinStatus
+comlin_edit_history_next(ComlinState* const l)
+{
+    return comlin_edit_history_step(l, COMLIN_HISTORY_NEXT);
+}
+
 static void
 comlin_edit_history_pop(ComlinState* const state)
 {
@@ -825,6 +837,13 @@ comlin_edit_delete(ComlinState* const l)
         return refresh_line(l);
     }
     return COMLIN_SUCCESS;
+}
+
+static ComlinStatus
+comlin_edit_interrupt(ComlinState* const l)
+{
+    (void)l;
+    return COMLIN_INTERRUPTED;
 }
 
 static ComlinStatus
@@ -899,6 +918,17 @@ comlin_edit_clear_to_end_of_line(ComlinState* const l)
         l->buf.length = l->pos;
         return refresh_line(l);
     }
+    return COMLIN_SUCCESS;
+}
+
+static ComlinStatus
+comlin_edit_submit(ComlinState* const l)
+{
+    comlin_edit_history_pop(l);
+    if (l->mlmode) {
+        comlin_edit_move_end(l);
+    }
+    l->buf.data[l->buf.length] = '\0';
     return COMLIN_SUCCESS;
 }
 
@@ -979,6 +1009,50 @@ control_status(ComlinStatus const st)
     return st ? st : COMLIN_READING;
 }
 
+static ComlinStatus
+comlin_edit_control(ComlinState* const state, char const c)
+{
+    typedef ComlinStatus (*const ControlHandler)(ComlinState*);
+
+    static ControlHandler const control_handlers[0x20U] = {
+      NULL,                             // ^@
+      comlin_edit_move_home,            // ^A
+      comlin_edit_move_left,            // ^B
+      comlin_edit_interrupt,            // ^C
+      comlin_edit_eof,                  // ^D
+      comlin_edit_move_end,             // ^E
+      comlin_edit_move_right,           // ^F
+      NULL,                             // ^G
+      comlin_edit_backspace,            // ^H
+      NULL,                             // ^I
+      comlin_edit_submit,               // ^J
+      comlin_edit_clear_to_end_of_line, // ^K
+      comlin_edit_clear_screen,         // ^L
+      comlin_edit_submit,               // ^M
+      comlin_edit_history_next,         // ^N
+      NULL,                             // ^O
+      comlin_edit_history_prev,         // ^P
+      NULL,                             // ^Q
+      NULL,                             // ^R
+      NULL,                             // ^S
+      comlin_edit_transpose,            // ^T
+      comlin_edit_clear_line,           // ^U
+      NULL,                             // ^V
+      comlin_edit_delete_prev_word,     // ^W
+      NULL,                             // ^X
+      NULL,                             // ^Y
+      NULL,                             // ^Z
+      comlin_edit_read_escape,          // ^[
+      NULL,                             // ^Backslash
+      NULL,                             // ^]
+      NULL,                             // ^^
+      NULL,                             // ^_
+    };
+
+    ControlHandler const handler = control_handlers[(unsigned)c];
+    return handler ? handler(state) : COMLIN_READING;
+}
+
 ComlinStatus
 comlin_edit_feed(ComlinState* const l)
 {
@@ -988,12 +1062,13 @@ comlin_edit_feed(ComlinState* const l)
     if (nread < 0) {
         return COMLIN_BAD_READ;
     }
+
     if (nread == 0) {
-        return COMLIN_END;
+        return COMLIN_END; // Read return 0, end of input reached
     }
 
     if (l->dumb) {
-        return comlin_edit_read_dumb(l, c);
+        return comlin_edit_read_dumb(l, c); // Fallback for dumb terminals
     }
 
     if ((l->in_completion || c == TAB) && l->completion_callback) {
@@ -1007,53 +1082,11 @@ comlin_edit_feed(ComlinState* const l)
         }
     }
 
-    switch (c) {
-    case LFEED:
-    case CRETURN:
-        comlin_edit_history_pop(l);
-        if (l->mlmode) {
-            comlin_edit_move_end(l);
-        }
-        l->buf.data[l->buf.length] = '\0';
-        return COMLIN_SUCCESS;
-    case CTRL_A:
-        return control_status(comlin_edit_move_home(l));
-    case CTRL_C:
-        return COMLIN_INTERRUPTED;
-    case DEL:
-    case CTRL_H:
-        return control_status(comlin_edit_backspace(l));
-    case CTRL_D:
-        return control_status(comlin_edit_eof(l));
-    case CTRL_E:
-        return control_status(comlin_edit_move_end(l));
-    case CTRL_T:
-        return control_status(comlin_edit_transpose(l));
-    case CTRL_B:
-        return control_status(comlin_edit_move_left(l));
-    case CTRL_F:
-        return control_status(comlin_edit_move_right(l));
-    case CTRL_K:
-        return control_status(comlin_edit_clear_to_end_of_line(l));
-    case CTRL_L:
-        return control_status(comlin_edit_clear_screen(l));
-    case CTRL_P:
-        return control_status(comlin_edit_history_next(l, COMLIN_HISTORY_PREV));
-    case CTRL_N:
-        return control_status(comlin_edit_history_next(l, COMLIN_HISTORY_NEXT));
-    case CTRL_U:
-        return control_status(comlin_edit_clear_line(l));
-    case CTRL_W:
-        return control_status(comlin_edit_delete_prev_word(l));
-    case ESC:
-        return control_status(comlin_edit_read_escape(l));
-    default:
-        if (c >= 0x20) {
-            return control_status(comlin_edit_insert(l, c));
-        }
-        break;
-    }
-    return COMLIN_READING;
+    return (c == LFEED || c == CRETURN)
+             ? comlin_edit_submit(l)
+             : control_status((c < 0x20)   ? comlin_edit_control(l, c)
+                              : (c == DEL) ? comlin_edit_backspace(l)
+                                           : comlin_edit_insert(l, c));
 }
 
 static ComlinStatus
@@ -1075,9 +1108,9 @@ comlin_edit_read_escape(ComlinState* const l)
 
         switch (seq[1]) {
         case 'A': // Up
-            return comlin_edit_history_next(l, COMLIN_HISTORY_PREV);
+            return comlin_edit_history_prev(l);
         case 'B': // Down
-            return comlin_edit_history_next(l, COMLIN_HISTORY_NEXT);
+            return comlin_edit_history_next(l);
         case 'C': // Right
             return comlin_edit_move_right(l);
         case 'D': // Left
