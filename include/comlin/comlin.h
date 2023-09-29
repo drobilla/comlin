@@ -75,10 +75,15 @@ typedef struct ComlinStateImpl ComlinState;
  * which are treated as truly "dumb" terminals that only support linear text
  * input and output.
  *
+ * @param max_history_len The maximum number of lines to store in the history.
+ *
  * @return A new state that must be freed with #comlin_free_state.
  */
 COMLIN_API ComlinState*
-comlin_new_state(int in_fd, int out_fd, char const* term);
+comlin_new_state(int in_fd,
+                 int out_fd,
+                 char const* term,
+                 size_t max_history_len);
 
 /** Free a terminal session.
  *
@@ -235,15 +240,6 @@ comlin_add_completion(ComlinCompletions* lc, char const* str);
  */
 COMLIN_API int
 comlin_history_add(ComlinState* state, char const* line);
-
-/** Set the maximum length for the history.
- *
- * This function can be called even if there is already some history, it will
- * make sure to retain just the latest 'len' elements if the new history length
- * length is less than the number of items already in the history.
- */
-COMLIN_API int
-comlin_history_set_max_len(ComlinState* state, size_t len);
 
 /** Save the history in the specified file.
  *

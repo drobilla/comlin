@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define COMLIN_DEFAULT_HISTORY_MAX_LEN 100
 #define COMLIN_MAX_LINE 4096
 
 /* We define a very simple "append buffer" structure, that is an heap
@@ -854,7 +853,10 @@ comlin_edit_delete_prev_word(ComlinState* const l)
 }
 
 ComlinState*
-comlin_new_state(int const in_fd, int const out_fd, char const* const term)
+comlin_new_state(int const in_fd,
+                 int const out_fd,
+                 char const* const term,
+                 size_t const max_history_len)
 {
     ComlinState* const l = (ComlinState*)calloc(1, sizeof(ComlinState));
     if (!l) {
@@ -864,7 +866,7 @@ comlin_new_state(int const in_fd, int const out_fd, char const* const term)
     l->ifd = in_fd;
     l->ofd = out_fd;
     l->dumb = is_unsupported_term(term);
-    l->history_max_len = COMLIN_DEFAULT_HISTORY_MAX_LEN;
+    l->history_max_len = max_history_len;
     l->cols = (size_t)get_columns(in_fd, out_fd);
     l->buf.data = (char*)calloc(1, l->cols);
     l->buf.size = l->cols;
@@ -1156,41 +1158,6 @@ comlin_history_add(ComlinState* const state, char const* const line)
     }
     state->history[state->history_len] = linecopy;
     ++state->history_len;
-    return 1;
-}
-
-int
-comlin_history_set_max_len(ComlinState* const state, size_t const len)
-{
-    if (len < 1) {
-        return 0;
-    }
-    if (state->history) {
-        size_t tocopy = state->history_len;
-
-        char** const new_history = (char**)malloc(sizeof(char*) * len);
-        if (!new_history) {
-            return 0;
-        }
-
-        // If we can't copy everything, free the elements we'll not use
-        if (len < tocopy) {
-            for (size_t j = 0U; j < tocopy - len; ++j) {
-                free(state->history[j]);
-            }
-            tocopy = len;
-        }
-        memset(new_history, 0, sizeof(char*) * len);
-        memcpy(new_history,
-               state->history + (state->history_len - tocopy),
-               sizeof(char*) * tocopy);
-        free(state->history);
-        state->history = new_history;
-    }
-    state->history_max_len = len;
-    if (state->history_len > state->history_max_len) {
-        state->history_len = state->history_max_len;
-    }
     return 1;
 }
 
