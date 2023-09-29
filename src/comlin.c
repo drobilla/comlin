@@ -28,8 +28,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define COMLIN_MAX_LINE 4096
-
 // A resizable buffer that contains a string
 typedef struct {
     char* data;    ///< Pointer to string buffer
@@ -105,9 +103,11 @@ enum KEY_ACTION {
     BACKSPACE = 127 // Backspace
 };
 
-#define REFRESH_CLEAN (1U << 0U) // Clean the old prompt from the screen
-#define REFRESH_WRITE (1U << 1U) // Rewrite the prompt on the screen.
-#define REFRESH_ALL (REFRESH_CLEAN | REFRESH_WRITE) // Do both.
+typedef unsigned ComlinRefreshFlags;
+
+static const ComlinRefreshFlags REFRESH_CLEAN = 1U << 0U;
+static const ComlinRefreshFlags REFRESH_WRITE = 1U << 1U;
+static const ComlinRefreshFlags REFRESH_ALL = REFRESH_CLEAN | REFRESH_WRITE;
 
 static void
 refresh_line(ComlinState* l);
@@ -511,12 +511,11 @@ append_line_text(StringBuf* const buf,
 /* Single line low level line refresh.
  *
  * Rewrite the currently edited line accordingly to the buffer content,
- * cursor position, and number of columns of the terminal.
- *
- * Flags is REFRESH_* macros. The function can just remove the old
- * prompt, just write it, or both. */
+ * cursor position, and number of columns of the terminal.  Flags control
+ * whether the line is cleared, written, or both.
+ */
 static void
-refresh_single_line(ComlinState const* const l, unsigned const flags)
+refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
 {
     int const fd = l->ofd;
 
@@ -563,13 +562,13 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
 
 /* Multi line low level line refresh.
  *
- * Rewrite the currently edited line accordingly to the buffer content,
- * cursor position, and number of columns of the terminal.
- *
- * Flags is REFRESH_* macros. The function can just remove the old
- * prompt, just write it, or both. */
+ * Rewrite the currently edited line accordingly to the buffer content, cursor
+ * position, and number of columns of the terminal.  The current terminal line
+ * is always effectively cleared, but the line is only written if
+ * #REFRESH_WRITE is given.
+ */
 static void
-refresh_multi_line(ComlinState* const l, unsigned const flags)
+refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
 {
     size_t rows = (l->plen + l->buf.length + l->cols - 1U) / l->cols;
     size_t const rpos = (l->plen + l->oldpos + l->cols) / l->cols;
@@ -650,7 +649,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
 /* Calls the two low level functions refreshSingleLine() or
  * refreshMultiLine() according to the selected mode. */
 static void
-refresh_line_with_flags(ComlinState* const l, unsigned const flags)
+refresh_line_with_flags(ComlinState* const l, ComlinRefreshFlags const flags)
 {
     if (l->mlmode) {
         refresh_multi_line(l, flags);
@@ -762,12 +761,14 @@ comlin_edit_move_end(ComlinState* const l)
     }
 }
 
-/* Substitute the currently edited line with the next or previous history
- * entry as specified by 'dir'. */
-#define COMLIN_HISTORY_NEXT 0
-#define COMLIN_HISTORY_PREV 1
+typedef enum {
+    COMLIN_HISTORY_NEXT,
+    COMLIN_HISTORY_PREV,
+} ComlinHistoryDirection;
+
+// Substitute the currently edited line with the next or previous history entry
 static void
-comlin_edit_history_next(ComlinState* const l, int const dir)
+comlin_edit_history_next(ComlinState* const l, ComlinHistoryDirection const dir)
 {
     if (l->history_len > 1U) {
         // Update the current history entry before overwriting it with the next
@@ -1182,6 +1183,8 @@ comlin_history_save(ComlinState const* const state, char const* const filename)
 ComlinStatus
 comlin_history_load(ComlinState* const state, char const* const filename)
 {
+#define COMLIN_MAX_LINE 4096
+
     FILE* const fp = fopen(filename, "r");
     char buf[COMLIN_MAX_LINE];
 
@@ -1201,6 +1204,8 @@ comlin_history_load(ComlinState* const state, char const* const filename)
     }
     fclose(fp);
     return COMLIN_SUCCESS;
+
+#undef COMLIN_MAX_LINE
 }
 
 void
