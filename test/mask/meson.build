@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 common_test_names = [
+  'CpCp',
   'one',
   'two',
 ]
