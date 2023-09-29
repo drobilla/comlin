@@ -113,7 +113,7 @@ static const ComlinRefreshFlags REFRESH_ALL = REFRESH_CLEAN | REFRESH_WRITE;
 static ComlinStatus
 refresh_line(ComlinState* l);
 
-/* ======================= Low level terminal handling ====================== */
+/* Terminal Communication */
 
 void
 comlin_mask_mode_enable(ComlinState* const comlin)
@@ -133,8 +133,7 @@ comlin_set_multi_line(ComlinState* const comlin, bool const ml)
     comlin->mlmode = ml;
 }
 
-/* Return true if the terminal name is in the list of terminals we know are
- * not able to understand basic escape sequences. */
+// Return true if the terminal is known to not support basic escape seequences
 static bool
 is_unsupported_term(char const* const term)
 {
@@ -229,9 +228,7 @@ disableRawMode(ComlinState* const state)
     return COMLIN_SUCCESS;
 }
 
-/* Use the ESC [6n escape sequence to query the horizontal cursor position
- * and return it. On error -1 is returned, on success the position of the
- * cursor. */
+// Get the cursor position by communicating with the terminal
 static int
 get_cursor_position(int const ifd, int const ofd)
 {
@@ -269,8 +266,7 @@ get_cursor_position(int const ifd, int const ofd)
     return cols;
 }
 
-/* Try to get the number of columns in the current terminal, or assume 80
- * if it fails. */
+// Get the number of columns in the terminal, or fall back to 80
 static int
 get_columns(int const ifd, int const ofd)
 {
@@ -327,7 +323,7 @@ comlin_beep(ComlinState const* const state)
     }
 }
 
-/* ============================== Completion ================================ */
+/* Completion */
 
 // Free a list of completion option populated by comlinAddCompletion()
 static void
@@ -361,20 +357,12 @@ refresh_line_with_completion(ComlinState* const ls,
     return refresh_line_with_flags(ls, flags);
 }
 
-/* This is an helper function for comlinEdit*() and is called when the
- * user types the <tab> key in order to complete the string currently in the
- * input.
+/* Helper for when the user presses Tab, or another key during completion.
  *
- * The state of the editing is encapsulated into the pointed comlinState
- * structure as described in the structure definition.
- *
- * If the function returns non-zero, the caller should handle the
- * returned value as a byte read from the standard input, and process
- * it as usually: this basically means that the function may return a byte
- * read from the termianl but not processed. Otherwise, if zero is returned,
- * the input was consumed by the completeLine() function to navigate the
- * possible completions, and the caller should read for the next characters
- * from stdin. */
+ * If the return is non-zero, it should be handled as a byte read from the
+ * input, and process it as usual.  Otherwise, the character was consumed by
+ * this function.
+ */
 static char
 complete_line(ComlinState* const ls, char const keypressed)
 {
@@ -461,7 +449,9 @@ comlin_add_completion(ComlinCompletions* const lc, char const* const str)
     lc->cvec[lc->len++] = copy;
 }
 
-/* =========================== Line editing ================================= */
+/*
+ * String Buffer
+ */
 
 static void
 buf_append(StringBuf* const buf, char const* const s, size_t const len)
@@ -507,12 +497,7 @@ append_line_text(StringBuf* const buf,
     }
 }
 
-/* Single line low level line refresh.
- *
- * Rewrite the currently edited line accordingly to the buffer content,
- * cursor position, and number of columns of the terminal.  Flags control
- * whether the line is cleared, written, or both.
- */
+// Clear and refresh the current line in single-line mode
 static ComlinStatus
 refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
 {
@@ -557,21 +542,16 @@ refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
     return st;
 }
 
-/* Multi line low level line refresh.
- *
- * Rewrite the currently edited line accordingly to the buffer content, cursor
- * position, and number of columns of the terminal.  The current terminal line
- * is always effectively cleared, but the line is only written if
- * #REFRESH_WRITE is given.
- */
+// Refresh the current line in multi-line mode
 static ComlinStatus
 refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
 {
-    size_t rows = (l->plen + l->buf.length + l->cols - 1U) / l->cols;
     size_t const rpos = (l->plen + l->oldpos + l->cols) / l->cols;
     size_t const old_rows = l->oldrows;
     int const fd = l->ofd;
 
+    // Calculate the total number of rows in the line
+    size_t rows = (l->plen + l->buf.length + l->cols - 1U) / l->cols;
     l->oldrows = rows;
 
     // We'll build the update here, then send it all in a single write
@@ -593,18 +573,15 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
     }
 
     if (flags & REFRESH_WRITE) {
-        // Move cursor to left edge
+        // Move to the left edge and write the current prompt and line
         buf_append(&update, "\r", 1);
-
-        // Write the prompt and the current buffer content
         buf_append(&update, l->prompt, l->plen);
         append_line_text(&update, l->buf.data, l->buf.length, l->maskmode);
 
-        // Erase to right
+        // Clear to the right edge
         buf_append(&update, "\x1B[0K", 4U);
 
-        /* If we are at the very end of the screen with our prompt, we need to
-         * emit a newline and move the prompt to the first column. */
+        // If we're at the end of the row, move to the start of the next line
         if (l->pos && l->pos == l->buf.length &&
             (l->pos + l->plen) % l->cols == 0) {
             buf_append(&update, "\n\r", 2);
@@ -614,17 +591,14 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
             }
         }
 
-        // Move cursor to right position
-        size_t const rpos2 =
-          (l->plen + l->pos + l->cols) / l->cols; // Current cursor relative row
-
-        // Go up till we reach the expected position
+        // Move the cursor up to the correct row if necessary
+        size_t const rpos2 = (l->plen + l->pos + l->cols) / l->cols;
         if (rows > rpos2) {
             snprintf(seq, 64, "\x1B[%zuA", rows - rpos2);
             buf_append(&update, seq, strlen(seq));
         }
 
-        // Set column
+        // Move the cursor to the correct column
         size_t const col = (l->plen + l->pos) % l->cols;
         if (col) {
             snprintf(seq, 64, "\r\x1B[%zuC", col);
@@ -641,8 +615,7 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
     return st;
 }
 
-/* Calls the two low level functions refreshSingleLine() or
- * refreshMultiLine() according to the selected mode. */
+// Optionally clear and/or refresh the current line
 static ComlinStatus
 refresh_line_with_flags(ComlinState* const l, ComlinRefreshFlags const flags)
 {
@@ -650,7 +623,7 @@ refresh_line_with_flags(ComlinState* const l, ComlinRefreshFlags const flags)
                      : refresh_single_line(l, flags);
 }
 
-// Utility function to avoid specifying REFRESH_ALL all the times
+// Clear and refresh the current line
 static ComlinStatus
 refresh_line(ComlinState* const l)
 {
@@ -675,9 +648,9 @@ comlin_show(ComlinState* const l)
     return refresh_line_with_flags(l, REFRESH_WRITE);
 }
 
-/* Insert the character 'c' at cursor current position.
- *
- * On error writing to the terminal -1 is returned, otherwise 0. */
+/* Editing Operations */
+
+// Insert a character at the current cursor position
 static ComlinStatus
 comlin_edit_insert(ComlinState* const l, char const c)
 {
@@ -705,7 +678,7 @@ comlin_edit_insert(ComlinState* const l, char const c)
     return refresh_line(l);
 }
 
-// Move cursor on the left
+// Move cursor one column to the left if possible
 static ComlinStatus
 comlin_edit_move_left(ComlinState* const l)
 {
@@ -716,7 +689,7 @@ comlin_edit_move_left(ComlinState* const l)
     return COMLIN_SUCCESS;
 }
 
-// Move cursor on the right
+// Move cursor one column to the right if possible
 static ComlinStatus
 comlin_edit_move_right(ComlinState* const l)
 {
@@ -749,6 +722,7 @@ comlin_edit_move_end(ComlinState* const l)
     return COMLIN_SUCCESS;
 }
 
+// Transpose the character under the cursor with the previous character
 static ComlinStatus
 comlin_edit_transpose(ComlinState* const state)
 {
@@ -823,8 +797,7 @@ comlin_edit_history_pop(ComlinState* const state)
     state->history_index = 0U;
 }
 
-/* Delete the character at the right of the cursor without altering the cursor
- * position. Basically this is what happens with the "Delete" keyboard key. */
+// Delete the character to the right of the cursor
 static ComlinStatus
 comlin_edit_delete(ComlinState* const l)
 {
@@ -873,8 +846,7 @@ comlin_edit_backspace(ComlinState* const l)
     return COMLIN_SUCCESS;
 }
 
-/* Delete the previous word, maintaining the cursor at the start of the
- * current word. */
+// Delete the word before the cursor
 static ComlinStatus
 comlin_edit_delete_prev_word(ComlinState* const l)
 {
@@ -970,8 +942,7 @@ comlin_edit_start(ComlinState* const l, char const* const prompt)
     l->buf.length = 0U;
     l->oldrows = 0U;
 
-    /* The latest history entry is always our current buffer, that
-     * initially is just an empty string. */
+    // Latest history entry represents the current lint (initially empty)
     comlin_history_add(l, "");
 
     // Set and write prompt
@@ -1165,7 +1136,7 @@ comlin_read_line(ComlinState* const state, char const* const prompt)
     return st0 ? st0 : st1;
 }
 
-/* ================================ History ================================= */
+/* History */
 
 /* Uses a fixed array of char pointers that are shifted (memmoved)
  * when the history max length is reached in order to remove the older
