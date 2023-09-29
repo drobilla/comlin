@@ -761,6 +761,20 @@ comlin_edit_move_end(ComlinState* const l)
     }
 }
 
+static void
+comlin_edit_transpose(ComlinState* const state)
+{
+    if (state->pos > 0U && state->pos < state->buf.length) {
+        char const aux = state->buf.data[state->pos - 1];
+        state->buf.data[state->pos - 1] = state->buf.data[state->pos];
+        state->buf.data[state->pos] = aux;
+        if (state->pos != state->buf.length - 1U) {
+            ++state->pos;
+        }
+        refresh_line(state);
+    }
+}
+
 typedef enum {
     COMLIN_HISTORY_NEXT,
     COMLIN_HISTORY_PREV,
@@ -797,6 +811,14 @@ comlin_edit_history_next(ComlinState* const l, ComlinHistoryDirection const dir)
         l->buf.data[l->pos] = '\0';
         refresh_line(l);
     }
+}
+
+static void
+comlin_edit_history_pop(ComlinState* const state)
+{
+    --state->history_len;
+    free(state->history[state->history_len]);
+    state->history_index = 0U;
 }
 
 /* Delete the character at the right of the cursor without altering the cursor
@@ -850,6 +872,24 @@ comlin_edit_delete_prev_word(ComlinState* const l)
     refresh_line(l);
 }
 
+static void
+comlin_edit_clear_line(ComlinState* const l)
+{
+    l->buf.data[0] = '\0';
+    l->pos = l->buf.length = 0;
+    refresh_line(l);
+}
+
+static void
+comlin_edit_clear_to_end_of_line(ComlinState* const l)
+{
+    if (l->pos < l->buf.length) {
+        l->buf.data[l->pos] = '\0';
+        l->buf.length = l->pos;
+        refresh_line(l);
+    }
+}
+
 ComlinState*
 comlin_new_state(int const in_fd,
                  int const out_fd,
@@ -898,6 +938,26 @@ comlin_edit_start(ComlinState* const l, char const* const prompt)
     return write_string(l->ofd, l->prompt, l->plen);
 }
 
+static ComlinStatus
+comlin_edit_read_dumb(ComlinState* const l, char const c)
+{
+    switch (c) {
+    case '\n':
+    case '\r':
+        return COMLIN_SUCCESS;
+    case CTRL_C:
+        return COMLIN_INTERRUPTED;
+    case CTRL_D:
+        return COMLIN_END;
+    default:
+        break;
+    }
+
+    write(l->ofd, &c, 1U);
+    buf_append(&l->buf, &c, 1U);
+    return COMLIN_READING;
+}
+
 ComlinStatus
 comlin_edit_feed(ComlinState* const l)
 {
@@ -912,20 +972,7 @@ comlin_edit_feed(ComlinState* const l)
     }
 
     if (l->dumb) {
-        // Fallback compatibility mode, read ASCII and emit no escapes
-        switch (c) {
-        case '\n':
-        case '\r':
-            return COMLIN_SUCCESS;
-        case CTRL_C:
-            return COMLIN_INTERRUPTED;
-        case CTRL_D:
-            return COMLIN_END;
-        default:
-            write(l->ofd, &c, 1U);
-            buf_append(&l->buf, &c, 1U);
-            return COMLIN_READING;
-        }
+        return comlin_edit_read_dumb(l, c);
     }
 
     if ((l->in_completion || c == TAB) && l->completion_callback) {
@@ -943,9 +990,7 @@ comlin_edit_feed(ComlinState* const l)
     switch (c) {
     case '\n':
     case ENTER: // Enter
-        --l->history_len;
-        free(l->history[l->history_len]);
-        l->history_index = 0U;
+        comlin_edit_history_pop(l);
         if (l->mlmode) {
             comlin_edit_move_end(l);
         }
@@ -962,22 +1007,12 @@ comlin_edit_feed(ComlinState* const l)
         if (l->buf.length > 0) {
             comlin_edit_delete(l);
         } else {
-            --l->history_len;
-            free(l->history[l->history_len]);
-            l->history_index = 0U;
+            comlin_edit_history_pop(l);
             return COMLIN_END;
         }
         break;
     case CTRL_T: // Ctrl-t, swaps current character with previous
-        if (l->pos > 0U && l->pos < l->buf.length) {
-            char const aux = l->buf.data[l->pos - 1];
-            l->buf.data[l->pos - 1] = l->buf.data[l->pos];
-            l->buf.data[l->pos] = aux;
-            if (l->pos != l->buf.length - 1U) {
-                ++l->pos;
-            }
-            refresh_line(l);
-        }
+        comlin_edit_transpose(l);
         break;
     case CTRL_B: // Ctrl-b
         comlin_edit_move_left(l);
@@ -1048,16 +1083,10 @@ comlin_edit_feed(ComlinState* const l)
         }
         break;
     case CTRL_U: // Ctrl+u, delete the whole line
-        l->buf.data[0] = '\0';
-        l->pos = l->buf.length = 0;
-        refresh_line(l);
+        comlin_edit_clear_line(l);
         break;
     case CTRL_K: // Ctrl+k, delete from current to end of line
-        if (l->pos < l->buf.length) {
-            l->buf.data[l->pos] = '\0';
-            l->buf.length = l->pos;
-            refresh_line(l);
-        }
+        comlin_edit_clear_to_end_of_line(l);
         break;
     case CTRL_A: // Ctrl+a, go to the start of the line
         comlin_edit_move_home(l);
