@@ -390,7 +390,7 @@ complete_line(ComlinState* const ls, char const keypressed)
         ls->in_completion = false;
     } else {
         switch (c) {
-        case TAB: // Tab
+        case TAB:
             if (!ls->in_completion) {
                 ls->in_completion = true;
                 ls->completion_idx = 0;
@@ -402,7 +402,7 @@ complete_line(ComlinState* const ls, char const keypressed)
             }
             c = 0;
             break;
-        case ESC: // Escape
+        case ESC:
             // Re-show original buffer
             if (ls->completion_idx < lc.len) {
                 refresh_line(ls);
@@ -1004,16 +1004,15 @@ comlin_edit_feed(ComlinState* const l)
             comlin_edit_move_end(l);
         }
         l->buf.data[l->buf.length] = '\0';
-        return COMLIN_SUCCESS; // Command ready for access with comlinText()
+        return COMLIN_SUCCESS;
     case CTRL_A:
         return control_status(comlin_edit_move_home(l));
     case CTRL_C:
         return COMLIN_INTERRUPTED;
-    case DEL:    // Backspace
-    case CTRL_H: // Ctrl-h
+    case DEL:
+    case CTRL_H:
         return control_status(comlin_edit_backspace(l));
-    case CTRL_D: /* ctrl-d, remove char at right of cursor, or if the
-                    line is empty, act as end-of-file. */
+    case CTRL_D:
         if (l->buf.length > 0) {
             return control_status(comlin_edit_delete(l));
         }
@@ -1021,25 +1020,25 @@ comlin_edit_feed(ComlinState* const l)
         return COMLIN_END;
     case CTRL_E:
         return control_status(comlin_edit_move_end(l));
-    case CTRL_T: // Ctrl-t, swaps current character with previous
+    case CTRL_T:
         return control_status(comlin_edit_transpose(l));
-    case CTRL_B: // Ctrl-b
+    case CTRL_B:
         return control_status(comlin_edit_move_left(l));
-    case CTRL_F: // Ctrl-f
+    case CTRL_F:
         return control_status(comlin_edit_move_right(l));
-    case CTRL_K: // Ctrl+k, delete from current to end of line
+    case CTRL_K:
         return control_status(comlin_edit_clear_to_end_of_line(l));
     case CTRL_L:
         return control_status(comlin_edit_clear_screen(l));
-    case CTRL_P: // Ctrl-p
+    case CTRL_P:
         return control_status(comlin_edit_history_next(l, COMLIN_HISTORY_PREV));
-    case CTRL_N: // Ctrl-n
+    case CTRL_N:
         return control_status(comlin_edit_history_next(l, COMLIN_HISTORY_NEXT));
-    case CTRL_U: // Ctrl+u, delete the whole line
+    case CTRL_U:
         return control_status(comlin_edit_clear_line(l));
-    case CTRL_W: // Ctrl+w, delete previous word
+    case CTRL_W:
         return control_status(comlin_edit_delete_prev_word(l));
-    case ESC: // Escape sequence
+    case ESC:
         return control_status(comlin_edit_read_escape(l));
     default:
         if (c >= 0x20) {
