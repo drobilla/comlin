@@ -145,6 +145,12 @@ endif
 
 subdir('examples')
 
+#########
+# Tests #
+#########
+
+subdir('test')
+
 #################
 # Documentation #
 #################
