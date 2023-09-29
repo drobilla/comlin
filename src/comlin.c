@@ -1053,52 +1053,41 @@ comlin_edit_feed(ComlinState* const l)
 static ComlinStatus
 comlin_edit_read_escape(ComlinState* const l)
 {
+    // Read the next two bytes representing the escape sequence
     char seq[4] = {'\0', '\0', '\0', '\0'};
-    if (true) {
-        // Read the next two bytes representing the escape sequence
-        if (read_full(l->ifd, seq, 2) != 2) {
-            return COMLIN_BAD_READ;
+    if (read_full(l->ifd, seq, 2) != 2) {
+        return COMLIN_BAD_READ;
+    }
+
+    if (seq[0] == '[') { // ESC [ sequences
+        if (seq[1] >= '0' && seq[1] <= '9') {
+            // Extended escape, read additional byte
+            return (read(l->ifd, seq + 2, 1) == -1)   ? COMLIN_BAD_READ
+                   : (seq[1] == '3' && seq[2] == '~') ? comlin_edit_delete(l)
+                                                      : COMLIN_SUCCESS;
         }
 
-        // ESC [ sequences
-        if (seq[0] == '[') {
-            if (seq[1] >= '0' && seq[1] <= '9') {
-                // Extended escape, read additional byte
-                if (read(l->ifd, seq + 2, 1) == -1) {
-                    return COMLIN_BAD_READ;
-                }
-                if (seq[2] == '~') {
-                    switch (seq[1]) {
-                    case '3': // Delete key
-                        return comlin_edit_delete(l);
-                    }
-                }
-            } else {
-                switch (seq[1]) {
-                case 'A': // Up
-                    return comlin_edit_history_next(l, COMLIN_HISTORY_PREV);
-                case 'B': // Down
-                    return comlin_edit_history_next(l, COMLIN_HISTORY_NEXT);
-                case 'C': // Right
-                    return comlin_edit_move_right(l);
-                case 'D': // Left
-                    return comlin_edit_move_left(l);
-                case 'H': // Home
-                    return comlin_edit_move_home(l);
-                case 'F': // End
-                    return comlin_edit_move_end(l);
-                }
-            }
+        switch (seq[1]) {
+        case 'A': // Up
+            return comlin_edit_history_next(l, COMLIN_HISTORY_PREV);
+        case 'B': // Down
+            return comlin_edit_history_next(l, COMLIN_HISTORY_NEXT);
+        case 'C': // Right
+            return comlin_edit_move_right(l);
+        case 'D': // Left
+            return comlin_edit_move_left(l);
+        case 'H': // Home
+            return comlin_edit_move_home(l);
+        case 'F': // End
+            return comlin_edit_move_end(l);
         }
 
-        // ESC O sequences
-        else if (seq[0] == 'O') {
-            switch (seq[1]) {
-            case 'H': // Home
-                return comlin_edit_move_home(l);
-            case 'F': // End
-                return comlin_edit_move_end(l);
-            }
+    } else if (seq[0] == 'O') { // ESC O sequence
+        switch (seq[1]) {
+        case 'H': // Home
+            return comlin_edit_move_home(l);
+        case 'F': // End
+            return comlin_edit_move_end(l);
         }
     }
 

@@ -3,4 +3,5 @@
 
 Checks: >
   -concurrency-mt-unsafe,
+  -readability-function-cognitive-complexity,
 InheritParentConfig: true
