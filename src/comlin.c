@@ -11,7 +11,6 @@
  * - http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
  *
  * TODO:
- * - Filter bogus Ctrl+<char> combinations.
  * - Add Win32 support.
  */
 
@@ -1044,8 +1043,6 @@ comlin_edit_feed(ComlinState* const l)
             }
         }
         break;
-    default:
-        return comlin_edit_insert(l, c);
     case CTRL_U: // Ctrl+u, delete the whole line
         l->buf.data[0] = '\0';
         l->pos = l->buf.length = 0;
@@ -1070,6 +1067,11 @@ comlin_edit_feed(ComlinState* const l)
         break;
     case CTRL_W: // Ctrl+w, delete previous word
         comlin_edit_delete_prev_word(l);
+        break;
+    default:
+        if (c >= 0x20) {
+            return comlin_edit_insert(l, c);
+        }
         break;
     }
     return COMLIN_READING;
