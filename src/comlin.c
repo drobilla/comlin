@@ -433,25 +433,26 @@ comlin_set_completion_callback(ComlinState* const state,
     state->completion_callback = fn;
 }
 
-void
+ComlinStatus
 comlin_add_completion(ComlinCompletions* const lc, char const* const str)
 {
-    size_t const len = strlen(str);
-
-    char* const copy = (char*)malloc(len + 1);
-    if (!copy) {
-        return;
-    }
-
-    memcpy(copy, str, len + 1);
-    char** const cvec =
-      (char**)realloc(lc->cvec, sizeof(char*) * (lc->len + 1));
+    size_t const cvec_size = sizeof(char*) * (lc->len + 1U);
+    char** const cvec = (char**)realloc(lc->cvec, cvec_size);
     if (!cvec) {
-        free(copy);
-        return;
+        return COMLIN_NO_MEMORY;
     }
+
     lc->cvec = cvec;
+
+    size_t const len = strlen(str);
+    char* const copy = (char*)malloc(len + 1U);
+    if (!copy) {
+        return COMLIN_NO_MEMORY;
+    }
+
+    memcpy(copy, str, len + 1U);
     lc->cvec[lc->len++] = copy;
+    return COMLIN_SUCCESS;
 }
 
 /*

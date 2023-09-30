@@ -226,7 +226,7 @@ comlin_set_completion_callback(ComlinState* state,
  * This is used by completion callback to add completion options given the
  * input string when the user pressed `TAB`.
  */
-COMLIN_API void
+COMLIN_API ComlinStatus
 comlin_add_completion(ComlinCompletions* lc, char const* str);
 
 /**
