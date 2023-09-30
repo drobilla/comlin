@@ -3,6 +3,22 @@
 
 run_test_py = files('run_test.py')
 
+# Unit Tests
+
+test(
+  'history',
+  executable(
+    'test_history',
+    files('test_history.c'),
+    c_args: c_suppressions,
+    dependencies: comlin_dep,
+    include_directories: include_dirs,
+  ),
+)
+
+
+# Data-Driven Tests
+
 test_comlin = executable(
   'test_comlin',
   files('test_comlin.c'),
@@ -12,6 +28,7 @@ test_comlin = executable(
 )
 
 subdir('common')
+subdir('history')
 subdir('mask')
-subdir('single')
 subdir('multi')
+subdir('single')

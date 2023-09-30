@@ -1197,7 +1197,9 @@ comlin_history_save(ComlinState const* const state, char const* const filename)
     }
     chmod(filename, S_IRUSR | S_IWUSR);
     for (size_t j = 0U; j < state->history_len; ++j) {
-        fprintf(fp, "%s\n", state->history[j]);
+        if (state->history[j][0]) {
+            fprintf(fp, "%s\n", state->history[j]);
+        }
     }
     fclose(fp);
     return COMLIN_SUCCESS;

@@ -10,6 +10,13 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef struct {
+    char const* restore_path;
+    char const* save_path;
+    bool mask;
+    bool multiline;
+} Options;
+
 static bool
 starts_with(char const* const string, char const* const prefix)
 {
@@ -40,9 +47,12 @@ print_usage(char const* const name, bool const error)
     static char const* const description =
       "Run an input/output test.\n"
       "INPUT is read directly and may contain terminal escapes.\n"
-      "Output is written to stdout.\n"
-      "  --mask   Use mask mode.\n"
-      "  --multi  Use multi-line mode.\n";
+      "Output is written to stdout.\n\n"
+      "  --help          Display this help and exit.\n"
+      "  --mask          Use mask mode.\n"
+      "  --multi         Use multi-line mode.\n"
+      "  --restore FILE  Load history from FILE before run.\n"
+      "  --save FILE     Save history to FILE after run.\n";
 
     FILE* const os = error ? stderr : stdout;
     fprintf(os, "%s", error ? "\n" : "");
@@ -51,18 +61,91 @@ print_usage(char const* const name, bool const error)
     return error ? 1 : 0;
 }
 
+static int
+missing_arg(char const* const name, char const* const opt)
+{
+    fprintf(stderr, "%s: option '%s' requires an argument\n", name, opt);
+    return print_usage(name, true);
+}
+
+static int
+run(int const ifd, int const ofd, Options const opts)
+{
+    bool const mask = opts.mask;
+    bool const multiline = opts.multiline;
+    char const* const restore_path = opts.restore_path;
+    char const* const save_path = opts.save_path;
+
+    // Allocate and configure state
+    ComlinState* const state = comlin_new_state(ifd, ofd, "vt100", 32U);
+    comlin_set_completion_callback(state, completion);
+    if (mask) {
+        comlin_mask_mode_enable(state);
+    }
+    if (multiline) {
+        comlin_set_multi_line(state, 1);
+    }
+
+    // Load initial history
+    if (restore_path) {
+        if (comlin_history_load(state, restore_path)) {
+            fprintf(stderr, "Failed to load history file '%s'\n", restore_path);
+            return 1;
+        }
+    }
+
+    // Process input lines until end of input or an error
+    ComlinStatus st = COMLIN_SUCCESS;
+    while (!st) {
+        st = comlin_read_line(state, "> ");
+        if (!st) {
+            char const* const line = comlin_text(state);
+            print_string("echo: ");
+            print_string(line);
+            print_string("\n");
+            comlin_history_add(state, line);
+        }
+    }
+
+    // Save updated history
+    if (save_path) {
+        if (comlin_history_save(state, save_path)) {
+            fprintf(stderr, "Failed to save history file '%s'\n", save_path);
+            return 1;
+        }
+    }
+
+    comlin_free_state(state);
+    return st == COMLIN_END ? 0 : 1;
+}
+
 int
 main(int const argc, char const* const* const argv)
 {
     // Parse command line options
-    bool mask = false;
-    bool multiline = false;
+    Options opts = {NULL, NULL, false, false};
     int a = 1;
     for (; a < argc && argv[a][0] == '-'; ++a) {
+        if (!strcmp(argv[a], "--help")) {
+            return print_usage(argv[0], false);
+        }
+
         if (!strcmp(argv[a], "--mask")) {
-            mask = true;
+            opts.mask = true;
         } else if (!strcmp(argv[a], "--multi")) {
-            multiline = true;
+            opts.multiline = true;
+        } else if (!strcmp(argv[a], "--restore")) {
+            if (++a == argc) {
+                return missing_arg(argv[0], "--restore");
+            }
+
+            opts.restore_path = argv[a];
+        } else if (!strcmp(argv[a], "--save")) {
+            if (++a == argc) {
+                return missing_arg(argv[0], "--save");
+            }
+
+            opts.save_path = argv[a];
         } else {
             return print_usage(argv[0], true);
         }
@@ -83,29 +166,5 @@ main(int const argc, char const* const* const argv)
         }
     }
 
-    // Allocate and configure state
-    ComlinState* const state = comlin_new_state(ifd, ofd, "vt100", 64U);
-    comlin_set_completion_callback(state, completion);
-    if (mask) {
-        comlin_mask_mode_enable(state);
-    }
-    if (multiline) {
-        comlin_set_multi_line(state, 1);
-    }
-
-    // Process input lines until end of input or an error
-    ComlinStatus st = COMLIN_SUCCESS;
-    while (!st) {
-        st = comlin_read_line(state, "> ");
-        if (!st) {
-            char const* const line = comlin_text(state);
-            print_string("echo: ");
-            print_string(line);
-            print_string("\n");
-            comlin_history_add(state, line);
-        }
-    }
-
-    comlin_free_state(state);
-    return st == COMLIN_END ? 0 : 1;
+    return run(ifd, ofd, opts);
 }

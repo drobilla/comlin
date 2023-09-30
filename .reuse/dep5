@@ -7,7 +7,7 @@ Files: .clant.json .includes.imp README.md
 Copyright: 2023 David Robillard <d@drobilla.net>
 License: BSD-2-Clause
 
-Files: test/*.ans
+Files: test/*.ans test/history/*.hist.txt
 Copyright: 2023 David Robillard <d@drobilla.net>
 Comment: Test cases
 License: BSD-2-Clause
