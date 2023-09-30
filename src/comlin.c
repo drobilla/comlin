@@ -501,18 +501,20 @@ append_line_text(StringBuf* const buf,
 static ComlinStatus
 refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
 {
-    int const fd = l->ofd;
-
+    // Chop the start if necessary so the cursor is on screen
     char* buf = l->buf.data;
     size_t len = l->buf.length;
     size_t pos = l->pos;
-    while (l->plen + pos >= l->cols) {
-        ++buf;
-        --len;
-        --pos;
+    if (l->plen + l->pos >= l->cols) {
+        size_t const offset = l->plen + l->pos + 1U - l->cols;
+        buf += offset;
+        len -= offset;
+        pos -= offset;
     }
-    while (l->plen + len > l->cols) {
-        --len;
+
+    // Truncate display length to fit on the line
+    if (l->plen + len > l->cols) {
+        len = l->cols - l->plen;
     }
 
     // We'll build the update here, then send it all in a single write
@@ -522,7 +524,7 @@ refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
     // Move cursor to left edge
     buf_append(&update, "\r", 1);
 
-    if (l->buf.data && (flags & REFRESH_WRITE)) {
+    if (flags & REFRESH_WRITE) {
         // Write the prompt and the current buffer content
         buf_append(&update, l->prompt, l->plen);
         append_line_text(&update, buf, len, l->maskmode);
@@ -531,13 +533,13 @@ refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
     // Erase to right
     buf_append(&update, "\x1B[0K", 4);
 
-    if (l->buf.data && (flags & REFRESH_WRITE)) {
+    if (flags & REFRESH_WRITE) {
         // Move cursor to original position
         snprintf(seq, sizeof(seq), "\r\x1B[%dC", (int)(pos + l->plen));
         buf_append(&update, seq, strlen(seq));
     }
 
-    ComlinStatus const st = write_string(fd, update.data, update.length);
+    ComlinStatus const st = write_string(l->ofd, update.data, update.length);
     buf_free(&update);
     return st;
 }
