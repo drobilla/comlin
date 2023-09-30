@@ -13,6 +13,7 @@
 typedef struct {
     char const* restore_path;
     char const* save_path;
+    bool dumb;
     bool mask;
     bool multiline;
 } Options;
@@ -48,6 +49,7 @@ print_usage(char const* const name, bool const error)
       "Run an input/output test.\n"
       "INPUT is read directly and may contain terminal escapes.\n"
       "Output is written to stdout.\n\n"
+      "  --dumb          Force dumb terminal mode.\n"
       "  --help          Display this help and exit.\n"
       "  --mask          Use mask mode.\n"
       "  --multi         Use multi-line mode.\n"
@@ -77,7 +79,8 @@ run(int const ifd, int const ofd, Options const opts)
     char const* const save_path = opts.save_path;
 
     // Allocate and configure state
-    ComlinState* const state = comlin_new_state(ifd, ofd, "vt100", 32U);
+    char const* const term = opts.dumb ? "dumb" : "vt100";
+    ComlinState* const state = comlin_new_state(ifd, ofd, term, 32U);
     comlin_set_completion_callback(state, completion);
     if (mask) {
         comlin_mask_mode_enable(state);
@@ -123,14 +126,16 @@ int
 main(int const argc, char const* const* const argv)
 {
     // Parse command line options
-    Options opts = {NULL, NULL, false, false};
+    Options opts = {NULL, NULL, false, false, false};
     int a = 1;
     for (; a < argc && argv[a][0] == '-'; ++a) {
         if (!strcmp(argv[a], "--help")) {
             return print_usage(argv[0], false);
         }
 
-        if (!strcmp(argv[a], "--mask")) {
+        if (!strcmp(argv[a], "--dumb")) {
+            opts.dumb = true;
+        } else if (!strcmp(argv[a], "--mask")) {
             opts.mask = true;
         } else if (!strcmp(argv[a], "--multi")) {
             opts.multiline = true;

@@ -28,6 +28,7 @@ test_comlin = executable(
 )
 
 subdir('common')
+subdir('dumb')
 subdir('history')
 subdir('mask')
 subdir('multi')

@@ -836,7 +836,7 @@ comlin_edit_eof(ComlinState* const l)
 static ComlinStatus
 comlin_edit_backspace(ComlinState* const l)
 {
-    if (l->pos && l->buf.length) {
+    if (l->pos) {
         memmove(l->buf.data + l->pos - 1U,
                 l->buf.data + l->pos,
                 l->buf.length - l->pos);
@@ -913,18 +913,15 @@ comlin_new_state(int const in_fd,
                  size_t const max_history_len)
 {
     ComlinState* const l = (ComlinState*)calloc(1, sizeof(ComlinState));
-    if (!l) {
-        return NULL;
+    if (l) {
+        l->ifd = in_fd;
+        l->ofd = out_fd;
+        l->dumb = is_unsupported_term(term);
+        l->history_max_len = max_history_len;
+        l->cols = (size_t)get_columns(in_fd, out_fd);
+        l->buf.data = (char*)calloc(1, l->cols);
+        l->buf.size = l->cols;
     }
-
-    l->ifd = in_fd;
-    l->ofd = out_fd;
-    l->dumb = is_unsupported_term(term);
-    l->history_max_len = max_history_len;
-    l->cols = (size_t)get_columns(in_fd, out_fd);
-    l->buf.data = (char*)calloc(1, l->cols);
-    l->buf.size = l->cols;
-
     return l;
 }
 
