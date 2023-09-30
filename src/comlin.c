@@ -16,6 +16,7 @@
 
 #include "comlin/comlin.h"
 
+#include <fcntl.h>
 #include <strings.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -27,6 +28,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef O_CLOEXEC
+#    define O_CLOEXEC 0
+#endif
 
 // A resizable buffer that contains a string
 typedef struct {
@@ -1188,48 +1193,53 @@ comlin_history_add(ComlinState* const state, char const* const line)
 ComlinStatus
 comlin_history_save(ComlinState const* const state, char const* const filename)
 {
-    mode_t const old_umask = umask(S_IXUSR | S_IRWXG | S_IRWXO);
-    FILE* const fp = fopen(filename, "w");
-    umask(old_umask);
-    if (!fp) {
+    ComlinStatus st = COMLIN_SUCCESS;
+    mode_t const mode = S_IRUSR | S_IWUSR;
+    int const flags = O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC;
+    int const fd = open(filename, flags, mode);
+    if (fd < 0) {
         return COMLIN_NO_FILE;
     }
-    chmod(filename, S_IRUSR | S_IWUSR);
-    for (size_t j = 0U; j < state->history_len; ++j) {
-        if (state->history[j][0]) {
-            fprintf(fp, "%s\n", state->history[j]);
+
+    for (size_t j = 0U; !st && j < state->history_len; ++j) {
+        size_t const len = strlen(state->history[j]);
+        if (len && !(st = write_string(fd, state->history[j], len))) {
+            st = write_string(fd, "\n", 1U);
         }
     }
-    fclose(fp);
-    return COMLIN_SUCCESS;
+
+    return close(fd) < 0 ? COMLIN_BAD_WRITE : st;
 }
 
 ComlinStatus
 comlin_history_load(ComlinState* const state, char const* const filename)
 {
-#define COMLIN_MAX_LINE 4096
-
-    FILE* const fp = fopen(filename, "r");
-    char buf[COMLIN_MAX_LINE];
-
-    if (!fp) {
+    ComlinStatus st = COMLIN_SUCCESS;
+    StringBuf buf = {NULL, 0U, 0U};
+    int const fd = open(filename, O_CLOEXEC | O_RDONLY);
+    if (fd < 0) {
         return COMLIN_NO_FILE;
     }
 
-    while (fgets(buf, COMLIN_MAX_LINE, fp) != NULL) {
-        char* p = strchr(buf, '\r');
-        if (!p) {
-            p = strchr(buf, '\n');
+    while (!st) {
+        char c = '\0';
+        ssize_t const r = read(fd, &c, 1U);
+        if (r == 1U) {
+            if (c == '\n' && buf.length) {
+                comlin_history_add(state, buf.data);
+                buf.length = 0U;
+            } else if (c >= 0x20 && c != DEL) {
+                buf_append(&buf, &c, 1U);
+            }
+        } else if (r < 0) {
+            st = COMLIN_BAD_READ;
+        } else {
+            break;
         }
-        if (p) {
-            *p = '\0';
-        }
-        comlin_history_add(state, buf);
     }
-    fclose(fp);
-    return COMLIN_SUCCESS;
 
-#undef COMLIN_MAX_LINE
+    buf_free(&buf);
+    return close(fd) < 0 ? COMLIN_BAD_WRITE : st;
 }
 
 void

@@ -5,7 +5,7 @@ Checks: >
   *,
   -*-magic-numbers,
   -altera-*,
-  -android-cloexec-fopen,
+  -bugprone-assignment-in-if-condition,
   -cert-err33-c,
   -cert-err34-c,
   -llvmlibc-*,
