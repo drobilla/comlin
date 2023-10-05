@@ -18,7 +18,6 @@
 #    endif
 #endif
 
-#include <stdbool.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -62,6 +61,15 @@ typedef enum {
  */
 typedef struct ComlinStateImpl ComlinState;
 
+/// A flag to configure the presentation of the command line
+typedef enum {
+    COMLIN_MODE_MASKED = 1U << 0U,
+    COMLIN_MODE_MULTI_LINE = 1U << 1U,
+} ComlinModeFlag;
+
+/// Bitwise OR of ComlinModeFlag values
+typedef unsigned ComlinModeFlags;
+
 /** Create a new terminal session.
  *
  * The returned state represents a connection to the terminal.  This may write
@@ -94,6 +102,14 @@ comlin_new_state(int in_fd,
  */
 COMLIN_API void
 comlin_free_state(ComlinState* state);
+
+/** Set or unset mode flags.
+ *
+ * This can be used to adjust the behaviour of the command line.  The changed
+ * mode will be applied on the next call to a read or edit function.
+ */
+COMLIN_API ComlinStatus
+comlin_set_mode(ComlinState* state, ComlinModeFlags flags);
 
 /**
    @}
@@ -266,27 +282,6 @@ comlin_history_load(ComlinState* state, char const* filename);
 /// Clear the screen
 COMLIN_API ComlinStatus
 comlin_clear_screen(ComlinState* state);
-
-/// Set whether to use multi-line mode
-COMLIN_API void
-comlin_set_multi_line(ComlinState* state, bool ml);
-
-/** Enable "mask mode".
- *
- * When this is enabled, the terminal will hide user input with asterisks.
- * This is useful for passwords and other secrets that shouldn't be *
- * displayed.
- */
-COMLIN_API void
-comlin_mask_mode_enable(ComlinState* state);
-
-/** Disable "mask mode".
- *
- * This will return to showing the user input after it was hidden with
- * comlinMaskModeEnable().
- */
-COMLIN_API void
-comlin_mask_mode_disable(ComlinState* state);
 
 /**
    @}

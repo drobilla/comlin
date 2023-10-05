@@ -120,24 +120,6 @@ refresh_line(ComlinState* l);
 
 /* Terminal Communication */
 
-void
-comlin_mask_mode_enable(ComlinState* const comlin)
-{
-    comlin->maskmode = true;
-}
-
-void
-comlin_mask_mode_disable(ComlinState* const comlin)
-{
-    comlin->maskmode = false;
-}
-
-void
-comlin_set_multi_line(ComlinState* const comlin, bool const ml)
-{
-    comlin->mlmode = ml;
-}
-
 // Return true if the terminal is known to not support basic escape seequences
 static bool
 is_unsupported_term(char const* const term)
@@ -929,6 +911,14 @@ comlin_new_state(int const in_fd,
         l->buf.size = l->cols;
     }
     return l;
+}
+
+ComlinStatus
+comlin_set_mode(ComlinState* const state, ComlinModeFlags const flags)
+{
+    state->mlmode = flags & (ComlinModeFlags)COMLIN_MODE_MULTI_LINE;
+    state->maskmode = flags & (ComlinModeFlags)COMLIN_MODE_MASKED;
+    return COMLIN_SUCCESS;
 }
 
 ComlinStatus

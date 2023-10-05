@@ -100,7 +100,7 @@ main(int argc, char** argv)
 
     ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"), 100U);
     if (multiline) {
-        comlin_set_multi_line(state, 1);
+        comlin_set_mode(state, COMLIN_MODE_MULTI_LINE);
     }
 
     /* Set the completion callback. This will be called every time the
@@ -184,9 +184,12 @@ main(int argc, char** argv)
             comlin_history_add(state, line);           // Add to the history
             comlin_history_save(state, "history.txt"); // Save history to disk
         } else if (!strncmp(line, "/mask", 5)) {
-            comlin_mask_mode_enable(state);
+            comlin_set_mode(
+              state,
+              (ComlinModeFlags)COMLIN_MODE_MASKED |
+                (multiline ? (ComlinModeFlags)COMLIN_MODE_MULTI_LINE : 0U));
         } else if (!strncmp(line, "/unmask", 7)) {
-            comlin_mask_mode_disable(state);
+            comlin_set_mode(state, (multiline ? COMLIN_MODE_MULTI_LINE : 0U));
         } else if (line[0] == '/') {
             printString("Unreconized command: ");
             printString(line);
