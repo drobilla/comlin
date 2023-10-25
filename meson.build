@@ -8,6 +8,7 @@ project(
     'b_ndebug=if-release',
     'buildtype=release',
     'c_std=c99',
+    'c_winlibs=',
   ],
   license: 'ISC',
   meson_version: '>= 0.54.0',
@@ -54,6 +55,30 @@ elif cc.get_id() == 'gcc'
       '-Wno-switch-default',
     ]
   endif
+
+elif cc.get_id() == 'msvc'
+  if warning_level == 'everything'
+    c_suppressions += [
+      '/wd4668', # replacing undefined preprocessor symbol with 0
+      '/wd4710', # function not inlined
+      '/wd4711', # function selected for automatic inline expansion
+      '/wd4820', # padding added after data member
+      '/wd5045', # will insert Spectre mitigation
+    ]
+  endif
+
+  if warning_level in ['everything', '3']
+    c_suppressions += [
+      '/wd4706', # assignment within conditional expression
+    ]
+  endif
+
+  if warning_level in ['everything', '3', '2']
+    c_suppressions += [
+      '/wd4267', # conversion from size_t, possible loss of data
+      '/wd4996', # POSIX name for this item is deprecated
+    ]
+  endif
 endif
 
 c_suppressions = cc.get_supported_arguments(c_suppressions)
@@ -72,8 +97,60 @@ else
   soversion = meson.project_version().split('.')[0]
 endif
 
-# Enable POSIX features
-platform_c_args = ['-D_POSIX_C_SOURCE=200809L']
+# Build platform-specific compiler arguments
+platform_c_args = []
+if host_machine.system() == 'windows'
+  platform_c_args = [
+    # Set minimum target version
+    '-DWINVER=0x0500', # Windows 2000
+    '-D_WIN32_WINNT=0x0500', # Windows 2000
+
+    # Disable as many things from windows.h as possible
+    '-DWIN32_LEAN_AND_MEAN',
+    '-DNOGDICAPMASKS', # CC_*, LC_*, PC_*, CP_*, TC_*, RC_
+    '-DNOVIRTUALKEYCODES', # VK_*
+    '-DNOWINMESSAGES', # WM_*, EM_*, LB_*, CB_*
+    '-DNOWINSTYLES', # WS_*, CS_*, ES_*, LBS_*, SBS_*, CBS_*
+    '-DNOSYSMETRICS', # SM_*
+    '-DNOMENUS', # MF_*
+    '-DNOICONS', # IDI_*
+    '-DNOKEYSTATES', # MK_*
+    '-DNOSYSCOMMANDS', # SC_*
+    '-DNORASTEROPS', # Binary and Tertiary raster ops
+    '-DNOSHOWWINDOW', # SW_*
+    '-DOEMRESOURCE', # OEM Resource values
+    '-DNOATOM', # Atom Manager routines
+    '-DNOCLIPBOARD', # Clipboard routines
+    '-DNOCOLOR', # Screen colors
+    '-DNOCTLMGR', # Control and Dialog routines
+    '-DNODRAWTEXT', # DrawText() and DT_*
+    '-DNOGDI', # All GDI defines and routines
+    '-DNOKERNEL', # All KERNEL defines and routines
+    '-DNOUSER', # All USER defines and routines
+    '-DNONLS', # All NLS defines and routines
+    '-DNOMB', # MB_* and MessageBox()
+    '-DNOMEMMGR', # GMEM_*, LMEM_*, GHND, LHND, associated routines
+    '-DNOMETAFILE', # typedef METAFILEPICT
+    '-DNOMINMAX', # Macros min(a,b) and max(a,b)
+    '-DNOMSG', # typedef MSG and associated routines
+    '-DNOOPENFILE', # OpenFile(), OemToAnsi, AnsiToOem, and OF_*
+    '-DNOSCROLL', # SB_* and scrolling routines
+    '-DNOSERVICE', # All Service Controller routines, SERVICE_ equates, etc.
+    '-DNOSOUND', # Sound driver routines
+    '-DNOTEXTMETRIC', # typedef TEXTMETRIC and associated routines
+    '-DNOWH', # SetWindowsHook and WH_*
+    '-DNOWINOFFSETS', # GWL_*, GCL_*, associated routines
+    '-DNOCOMM', # COMM driver routines
+    '-DNOKANJI', # Kanji support stuff
+    '-DNOHELP', # Help engine interface
+    '-DNOPROFILER', # Profiler interface
+    '-DNODEFERWINDOWPOS', # DeferWindowPos routines
+    '-DNOMCX', # Modem Configuration Extensions
+  ]
+else
+  # Enable POSIX features on GNU
+  platform_c_args = ['-D_POSIX_C_SOURCE=200809L']
+endif
 
 ###########
 # Library #
@@ -147,7 +224,9 @@ endif
 # Examples #
 ############
 
-subdir('examples')
+if host_machine.system() != 'windows'
+  subdir('examples')
+endif
 
 #########
 # Tests #

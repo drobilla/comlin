@@ -16,11 +16,17 @@
 
 #include "comlin/comlin.h"
 
+#ifdef _WIN32
+#    include <io.h>
+#    include <windows.h>
+#else // POSIX
+#    include <sys/ioctl.h>
+#    include <termios.h>
+#    include <unistd.h>
+#endif
+
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <termios.h>
-#include <unistd.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -36,14 +42,24 @@
 // The two characters that begin a VT-100 escape sequence: `ESC [`
 #define VTESC "\x1B["
 
+#ifdef _WIN32
+typedef int ssize_t; // read() and write() return value
+
+typedef struct {
+    DWORD in_mode;  ///< Console input mode
+    DWORD out_mode; ///< Console output mode
+} ComlinTerminalState;
+
+#else // POSIX
+typedef struct termios ComlinTerminalState;
+#endif
+
 // A resizable buffer that contains a string
 typedef struct {
     char* data;    ///< Pointer to string buffer
     size_t length; ///< Length of string (not greater than size)
     size_t size;   ///< Size of data
 } StringBuf;
-
-typedef struct termios ComlinTerminalState;
 
 struct ComlinStateImpl {
     // Completion
@@ -173,6 +189,13 @@ write_string(int const fd, char const* const buf, size_t const count)
 static ComlinStatus
 enable_raw_mode(ComlinState* const state)
 {
+#ifdef _WIN32
+    _setmode(state->ifd, _O_BINARY);
+    _setmode(state->ofd, _O_BINARY);
+    state->rawmode = true;
+    return COMLIN_SUCCESS;
+
+#else // POSIX
     if (!isatty(state->ifd)) {
         return COMLIN_SUCCESS;
     }
@@ -201,15 +224,18 @@ enable_raw_mode(ComlinState* const state)
     int const rc = tcsetattr(state->ifd, TCSAFLUSH, &raw);
     state->rawmode = !rc;
     return rc ? COMLIN_BAD_TERMINAL : COMLIN_SUCCESS;
+#endif
 }
 
 static ComlinStatus
 disable_raw_mode(ComlinState* const state)
 {
     if (state->rawmode) {
+#ifndef _WIN32
         if (tcsetattr(state->ifd, TCSAFLUSH, &state->cooked) == -1) {
             return COMLIN_BAD_TERMINAL;
         }
+#endif
 
         state->rawmode = false;
     }
@@ -265,6 +291,13 @@ get_cursor_position(int const ifd, int const ofd)
 static int
 get_columns(ComlinState* const state)
 {
+#ifdef _WIN32
+    intptr_t const oh = _get_osfhandle(state->ofd);
+    CONSOLE_SCREEN_BUFFER_INFO b;
+    return GetConsoleScreenBufferInfo((HANDLE)oh, &b)
+             ? (b.srWindow.Right - b.srWindow.Left)
+             : 80;
+#else
     int const ifd = state->ifd;
     int const ofd = state->ofd;
     struct winsize ws = {24U, 80U, 640U, 480U};
@@ -282,6 +315,7 @@ get_columns(ComlinState* const state)
     }
 
     return ws.ws_col;
+#endif
 }
 
 ComlinStatus
@@ -1188,8 +1222,13 @@ comlin_history_add(ComlinState* const state, char const* const line)
 ComlinStatus
 comlin_history_save(ComlinState const* const state, char const* const filename)
 {
+#ifdef _WIN32
+    static int const mode = S_IREAD | S_IWRITE;
+#else
+    static mode_t const mode = S_IRUSR | S_IWUSR;
+#endif
+
     ComlinStatus st = COMLIN_SUCCESS;
-    mode_t const mode = S_IRUSR | S_IWUSR;
     int const flags = O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC;
     int const fd = open(filename, flags, mode);
     if (fd < 0) {
