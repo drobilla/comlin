@@ -957,7 +957,7 @@ control_status(ComlinStatus const st)
 static ComlinStatus
 comlin_edit_control(ComlinState* const state, char const c)
 {
-    typedef ComlinStatus (*const ControlHandler)(ComlinState*);
+    typedef ComlinStatus (*ControlHandler)(ComlinState*);
 
     static ControlHandler const control_handlers[0x20U] = {
       NULL,                             // ^@
