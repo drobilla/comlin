@@ -34,6 +34,9 @@
 #    define O_CLOEXEC 0
 #endif
 
+// The two characters that begin a VT-100 escape sequence: `ESC [`
+#define VTESC "\x1B["
+
 // A resizable buffer that contains a string
 typedef struct {
     char* data;    ///< Pointer to string buffer
@@ -213,7 +216,7 @@ static int
 get_cursor_position(int const ifd, int const ofd)
 {
     // Send request for cursor location
-    if (write_string(ofd, "\x1B[6n", 5)) {
+    if (write_string(ofd, VTESC "6n", 5)) {
         return -1;
     }
 
@@ -264,7 +267,7 @@ get_columns(ComlinState* const state)
         // ioctl() failed. Try to query the terminal itself
         ws.ws_col = 80U;
         enable_raw_mode(state);
-        if (!write_string(ofd, "\x1B[999C", 6)) { // Go to the right margin
+        if (!write_string(ofd, VTESC "999C", 6)) { // Go to the right margin
             int const cols = get_cursor_position(ifd, ofd); // Get the column
             write_string(ofd, "\r", 1); // Return to the left margin
             ws.ws_col = cols > 0 ? (unsigned short)cols : 80U;
@@ -278,7 +281,7 @@ get_columns(ComlinState* const state)
 ComlinStatus
 comlin_clear_screen(ComlinState* const state)
 {
-    return write_string(state->ofd, "\x1B[H\x1B[2J", 7);
+    return write_string(state->ofd, VTESC "H" VTESC "2J", 7);
 }
 
 /* Beep, used for completion when there is nothing to complete or when all
@@ -500,11 +503,11 @@ refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
     }
 
     // Erase to right
-    buf_append(&update, "\x1B[0K", 4);
+    buf_append(&update, VTESC "0K", 4);
 
     if (flags & REFRESH_WRITE) {
         // Move cursor to original position
-        snprintf(seq, sizeof(seq), "\r\x1B[%dC", (int)(pos + l->plen));
+        snprintf(seq, sizeof(seq), "\r" VTESC "%dC", (int)(pos + l->plen));
         buf_append(&update, seq, strlen(seq));
     }
 
@@ -533,13 +536,13 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
     if (flags & REFRESH_CLEAN) {
         // Go to the last row
         if (old_rows > rpos) {
-            snprintf(seq, 64, "\x1B[%zuB", old_rows - rpos);
+            snprintf(seq, 64, VTESC "%zuB", old_rows - rpos);
             buf_append(&update, seq, strlen(seq));
         }
 
         // For each row, clear it, then move up
         for (size_t j = 1U; j < old_rows; ++j) {
-            buf_append(&update, "\r\x1B[0K\x1B[1A", 9U);
+            buf_append(&update, "\r" VTESC "0K" VTESC "1A", 9U);
         }
     }
 
@@ -550,7 +553,7 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
         append_line_text(&update, l->buf.data, l->buf.length, l->maskmode);
 
         // Clear to the right edge
-        buf_append(&update, "\x1B[0K", 4U);
+        buf_append(&update, VTESC "0K", 4U);
 
         // If we're at the end of the row, move to the start of the next line
         if (l->pos && l->pos == l->buf.length &&
@@ -565,14 +568,14 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
         // Move the cursor up to the correct row if necessary
         size_t const rpos2 = (l->plen + l->pos + l->cols) / l->cols;
         if (rows > rpos2) {
-            snprintf(seq, 64, "\x1B[%zuA", rows - rpos2);
+            snprintf(seq, 64, VTESC "%zuA", rows - rpos2);
             buf_append(&update, seq, strlen(seq));
         }
 
         // Move the cursor to the correct column
         size_t const col = (l->plen + l->pos) % l->cols;
         if (col) {
-            snprintf(seq, 64, "\r\x1B[%zuC", col);
+            snprintf(seq, 64, "\r" VTESC "%zuC", col);
         } else {
             snprintf(seq, 64, "\r");
         }
