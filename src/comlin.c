@@ -262,13 +262,12 @@ get_columns(ComlinState* const state)
 
     if (isatty(ofd) && (ioctl(ofd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)) {
         // ioctl() failed. Try to query the terminal itself
+        ws.ws_col = 80U;
         enable_raw_mode(state);
         if (!write_string(ofd, "\x1B[999C", 6)) { // Go to the right margin
             int const cols = get_cursor_position(ifd, ofd); // Get the column
             write_string(ofd, "\r", 1); // Return to the left margin
             ws.ws_col = cols > 0 ? (unsigned short)cols : 80U;
-        } else {
-            ws.ws_col = 80U;
         }
         disable_raw_mode(state);
     }
