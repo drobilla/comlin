@@ -8,7 +8,6 @@ Checks: >
   -bugprone-assignment-in-if-condition,
   -bugprone-easily-swappable-parameters,
   -cert-err33-c,
-  -cert-err34-c,
   -llvmlibc-*,
   -readability-identifier-length,
 WarningsAsErrors: '*'
