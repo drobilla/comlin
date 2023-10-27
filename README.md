@@ -33,8 +33,11 @@ Requirements
 ------------
 
 Comlin requires a reasonably modern POSIX system with a C99 or newer compiler.
-It works on terminals that support the following common VT-100 escape sequences:
+It works on terminals that support the following characters and VT-100 escape
+sequences:
 
+* ASCII `CR` (Carriage Return): `0x0D`
+  * Move the cursor to the start of the current line.
 * `EL` (Erase Line): `ESC [ n K`
   * If `n` is 0 or missing, clear from cursor to end of line.
   * If `n` is 1, clear from beginning of line to cursor.
@@ -44,22 +47,23 @@ It works on terminals that support the following common VT-100 escape sequences:
 * `CUB` (CUrsor Backward): `ESC [ n D`
   * Move the cursor backward `n` characters.
 
-Basic functionality requires only these three, but others may be used
-conditionally.  If getting the terminal width via the `TIOCGWINSZ` ioctl fails,
-it will be requested from the terminal:
+Basic functionality requires only these, but others may be used conditionally.
+If getting the terminal width via the `TIOCGWINSZ` ioctl fails, it will be
+requested from the terminal:
 
 * `DSR` (Device Status Report): `ESC [ 6 n`
   * Report the current cursor row `n` and column `m` as `ESC [ n ; m R`.
 
-If multi-line mode is enabled, the cursor may move vertically:
+If that method fails as well, the terminal is assumed to be 80 columns wide.
+If multi-line mode is enabled, the cursor may be moved vertically:
 
 * `CUU` (Cursor Up): `ESC [ n A`
   * Move the cursor up `n` lines.
 * `CUD` (Cursor Down): Sequence: `ESC [ n B`
   * Move the cursor down `n` lines.
 
-If comlinClearScreen() is called, the terminal is asked to return the cursor to
-home and erase the display:
+If the screen is cleared, the terminal is asked to return the cursor to home
+and erase the display:
 
 * `CUP` (Cursor position): `ESC [ H`
   * Move the cursor to upper left corner.
