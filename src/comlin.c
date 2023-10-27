@@ -194,7 +194,7 @@ enable_raw_mode(ComlinState* const state)
 }
 
 static ComlinStatus
-disableRawMode(ComlinState* const state)
+disable_raw_mode(ComlinState* const state)
 {
     if (state->rawmode) {
         if (tcsetattr(state->ifd, TCSAFLUSH, &state->cooked) == -1) {
@@ -1090,7 +1090,7 @@ comlin_edit_read_escape(ComlinState* const l)
 ComlinStatus
 comlin_edit_stop(ComlinState* const l)
 {
-    ComlinStatus const st = disableRawMode(l);
+    ComlinStatus const st = disable_raw_mode(l);
 
     return st ? st : write_string(l->ofd, "\n", 1);
 }
@@ -1229,7 +1229,7 @@ comlin_free_state(ComlinState* const state)
     free(state->history);
 
     // Disable raw mode if it was enabled by comlinNew
-    disableRawMode(state);
+    disable_raw_mode(state);
 
     free(state->buf.data);
     free(state);
