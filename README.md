@@ -72,5 +72,5 @@ Related projects
 * Comlin is based on [Linenoise](https://github.com/antirez/linenoise)
 
 All credit for the original implementation goes to the authors of linenoise.
-Note, however, that comlin is a separate project has been "hard forked", and
-the API is not at all compatible.
+The history of this git repository preserves this lineage, but note that comlin
+is a separate project with a completely incompatible API.
