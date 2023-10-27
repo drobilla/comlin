@@ -22,7 +22,7 @@ test(
 test_comlin = executable(
   'test_comlin',
   files('test_comlin.c'),
-  c_args: c_suppressions,
+  c_args: platform_c_args + c_suppressions,
   dependencies: comlin_dep,
   include_directories: include_dirs,
 )
