@@ -161,6 +161,14 @@ is_unsupported_term(char const* const term)
     return false;
 }
 
+#ifdef _WIN32
+static HANDLE
+console_handle(int const fd)
+{
+    return _isatty(fd) ? (HANDLE)_get_osfhandle(fd) : (HANDLE)0;
+}
+#endif
+
 static ComlinStatus
 read_char(int const fd, char* const buf)
 {
@@ -192,6 +200,23 @@ enable_raw_mode(ComlinState* const state)
 #ifdef _WIN32
     _setmode(state->ifd, _O_BINARY);
     _setmode(state->ofd, _O_BINARY);
+
+    HANDLE const ih = console_handle(state->ifd);
+    if (ih && (!GetConsoleMode(ih, &state->cooked.in_mode) ||
+               !SetConsoleMode(
+                 ih, state->cooked.in_mode | ENABLE_VIRTUAL_TERMINAL_INPUT))) {
+        return COMLIN_BAD_TERMINAL;
+    }
+
+    HANDLE const oh = console_handle(state->ofd);
+    if (oh && (!GetConsoleMode(oh, &state->cooked.out_mode) ||
+               !SetConsoleMode(oh,
+                               state->cooked.out_mode |
+                                 ENABLE_VIRTUAL_TERMINAL_PROCESSING |
+                                 DISABLE_NEWLINE_AUTO_RETURN))) {
+        return COMLIN_BAD_TERMINAL;
+    }
+
     state->rawmode = true;
     return COMLIN_SUCCESS;
 
@@ -231,7 +256,14 @@ static ComlinStatus
 disable_raw_mode(ComlinState* const state)
 {
     if (state->rawmode) {
-#ifndef _WIN32
+#ifdef _WIN32
+        HANDLE const ih = console_handle(state->ifd);
+        HANDLE const oh = console_handle(state->ofd);
+        if ((ih && !SetConsoleMode(ih, state->cooked.in_mode)) ||
+            (oh && !SetConsoleMode(oh, state->cooked.out_mode))) {
+            return COMLIN_BAD_TERMINAL;
+        }
+#else // POSIX
         if (tcsetattr(state->ifd, TCSAFLUSH, &state->cooked) == -1) {
             return COMLIN_BAD_TERMINAL;
         }
