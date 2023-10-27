@@ -135,20 +135,12 @@ is_unsupported_term(char const* const term)
     return false;
 }
 
-static ssize_t
-read_full(int const fd, char* const buf, size_t const count)
+static ComlinStatus
+read_char(int const fd, char* const buf)
 {
-    size_t offset = 0U;
-    while (offset < count) {
-        ssize_t const r = read(fd, buf + offset, count - offset);
-        if (r <= 0) {
-            return -1;
-        }
+    ssize_t const r = read(fd, buf, 1);
 
-        offset += (size_t)r;
-    }
-
-    return (ssize_t)count;
+    return r < 0 ? COMLIN_BAD_READ : r == 0 ? COMLIN_END : COMLIN_SUCCESS;
 }
 
 static ComlinStatus
@@ -231,7 +223,7 @@ get_cursor_position(int const ifd, int const ofd)
 
     // Read the response: ESC [ rows ; cols R
     while (i + 1U < sizeof(buf)) {
-        if (read(ifd, buf + i, 1) != 1) {
+        if (read_char(ifd, buf + i)) {
             break;
         }
         if (buf[i] == 'R') {
@@ -1024,13 +1016,9 @@ comlin_edit_feed(ComlinState* const l)
 {
     // Read the next character
     char c = '\0';
-    ssize_t const nread = read(l->ifd, &c, 1);
-    if (nread < 0) {
-        return COMLIN_BAD_READ;
-    }
-
-    if (nread == 0) {
-        return COMLIN_END; // Read return 0, end of input reached
+    ComlinStatus const st = read_char(l->ifd, &c);
+    if (st) {
+        return st;
     }
 
     if (l->dumb) {
@@ -1060,14 +1048,14 @@ comlin_edit_read_escape(ComlinState* const l)
 {
     // Read the next two bytes representing the escape sequence
     char seq[4] = {'\0', '\0', '\0', '\0'};
-    if (read_full(l->ifd, seq, 2) != 2) {
+    if (read_char(l->ifd, &seq[0]) || read_char(l->ifd, &seq[1])) {
         return COMLIN_BAD_READ;
     }
 
     if (seq[0] == '[') { // ESC [ sequences
         if (seq[1] >= '0' && seq[1] <= '9') {
             // Extended escape, read additional byte
-            return (read(l->ifd, seq + 2, 1) == -1)   ? COMLIN_BAD_READ
+            return read_char(l->ifd, &seq[2])         ? COMLIN_BAD_READ
                    : (seq[1] == '3' && seq[2] == '~') ? comlin_edit_delete(l)
                                                       : COMLIN_SUCCESS;
         }
@@ -1214,17 +1202,15 @@ comlin_history_load(ComlinState* const state, char const* const filename)
 
     while (!st) {
         char c = '\0';
-        ssize_t const r = read(fd, &c, 1U);
-        if (r == 1U) {
+        if (!(st = read_char(fd, &c))) {
             if (c == '\n' && buf.length) {
                 comlin_history_add(state, buf.data);
                 buf.length = 0U;
             } else if (c >= 0x20 && c != DEL) {
                 buf_append(&buf, &c, 1U);
             }
-        } else if (r < 0) {
-            st = COMLIN_BAD_READ;
-        } else {
+        } else if (st == COMLIN_END) {
+            st = COMLIN_SUCCESS;
             break;
         }
     }
