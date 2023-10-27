@@ -234,15 +234,18 @@ get_cursor_position(int const ifd, int const ofd)
     errno = 0;
 
     // Skip the number of rows
-    char* end = NULL;
-    long const rows = strtol(buf + 2, &end, 10);
-    if (errno || !rows || end == buf + 2 || *end != ';') {
+    i = 2;
+    while (buf[i] >= '0' && buf[i] <= '9') {
+        ++i;
+    }
+    if (buf[i] != ';') {
         return -1;
     }
 
     // Parse the number of columns
-    long const cols = strtol(end + 1, &end, 10);
-    if (errno || !cols) {
+    char* end = NULL;
+    long const cols = strtol(buf + i + 1, &end, 10);
+    if (errno || cols < 1 || *end != '\0') {
         return -1;
     }
 
