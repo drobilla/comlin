@@ -17,6 +17,7 @@
 #include "comlin/comlin.h"
 
 #ifdef _WIN32
+#    include <conio.h>
 #    include <io.h>
 #    include <windows.h>
 #else // POSIX
@@ -172,6 +173,13 @@ console_handle(int const fd)
 static ComlinStatus
 read_char(int const fd, char* const buf)
 {
+#ifdef _WIN32
+    if (_isatty(fd)) { // Special case: read from console
+        ((unsigned char*)buf)[0] = (unsigned char)_getch();
+        return COMLIN_SUCCESS;
+    }
+#endif
+
     ssize_t const r = read(fd, buf, 1);
 
     return r < 0 ? COMLIN_BAD_READ : r == 0 ? COMLIN_END : COMLIN_SUCCESS;
@@ -324,9 +332,9 @@ static int
 get_columns(ComlinState* const state)
 {
 #ifdef _WIN32
-    intptr_t const oh = _get_osfhandle(state->ofd);
+    HANDLE const oh = console_handle(state->ofd);
     CONSOLE_SCREEN_BUFFER_INFO b;
-    return GetConsoleScreenBufferInfo((HANDLE)oh, &b)
+    return (oh && GetConsoleScreenBufferInfo(oh, &b))
              ? (b.srWindow.Right - b.srWindow.Left)
              : 80;
 #else
@@ -1095,6 +1103,40 @@ comlin_edit_control(ComlinState* const state, char const c)
     return handler ? handler(state) : COMLIN_EDITING;
 }
 
+#ifdef _WIN32
+// Read a Windows console special key
+ComlinStatus
+comlin_edit_read_win(ComlinState* const state)
+{
+    char c = 0;
+    ComlinStatus st = read_char(state->ifd, &c);
+    if (st) {
+        return st;
+    }
+
+    switch (c) {
+    case 71: // Home
+        return comlin_edit_move_home(state);
+    case 72: // Up
+        return comlin_edit_history_prev(state);
+    case 75: // Left
+        return comlin_edit_move_left(state);
+    case 77: // Right
+        return comlin_edit_move_right(state);
+    case 79: // End
+        return comlin_edit_move_end(state);
+    case 80: // Down
+        return comlin_edit_history_next(state);
+    case 83: // Delete
+        return comlin_edit_delete(state);
+    default:
+        break;
+    }
+
+    return COMLIN_BAD_READ;
+}
+#endif
+
 ComlinStatus
 comlin_edit_feed(ComlinState* const l)
 {
@@ -1104,6 +1146,12 @@ comlin_edit_feed(ComlinState* const l)
     if (st) {
         return st;
     }
+
+#ifdef _WIN32
+    if ((unsigned char)c == 0xE0U) {
+        return comlin_edit_read_win(l);
+    }
+#endif
 
     if (l->dumb) {
         return comlin_edit_read_dumb(l, c); // Fallback for dumb terminals
