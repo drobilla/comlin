@@ -17,7 +17,6 @@
 #include "comlin/comlin.h"
 
 #include <fcntl.h>
-#include <strings.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <termios.h>
@@ -124,13 +123,29 @@ refresh_line(ComlinState* l);
 
 /* Terminal Communication */
 
+// Return true if a `real` TERM value matches an `ideal` one
+static bool
+term_matches(char const* const ideal, char const* const real)
+{
+    // Intentionally loose: match anything with the ideal prefix
+    for (unsigned i = 0U; ideal[i]; ++i) {
+        char const r = real[i];
+        char const l = (char)((r >= 'A' && r <= 'Z') ? (r + ('a' - 'A')) : r);
+        if (l != ideal[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // Return true if the terminal is known to not support basic escape seequences
 static bool
 is_unsupported_term(char const* const term)
 {
     if (term) {
         for (unsigned i = 0U; unsupported_term[i]; ++i) {
-            if (!strcasecmp(term, unsupported_term[i])) {
+            if (term_matches(unsupported_term[i], term)) {
                 return true;
             }
         }
