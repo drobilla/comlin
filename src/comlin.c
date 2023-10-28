@@ -43,6 +43,8 @@ typedef struct {
     size_t size;   ///< Size of data
 } StringBuf;
 
+typedef struct termios ComlinTerminalState;
+
 struct ComlinStateImpl {
     // Completion
     ComlinCompletionCallback* completion_callback; ///< Get completions
@@ -61,8 +63,10 @@ struct ComlinStateImpl {
     size_t history_len;     ///< Number of history entries
     char** history;         ///< History entries
 
+    // Terminal state
+    ComlinTerminalState cooked; ///< Terminal settings before raw mode
+
     // Line editing state
-    struct termios cooked; ///< Terminal settings before raw mode
     StringBuf buf;         ///< Editing line buffer
     char const* prompt;    ///< Prompt to display
     size_t plen;           ///< Prompt length
