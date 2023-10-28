@@ -853,15 +853,20 @@ comlin_edit_clear_screen(ComlinState* const state)
 }
 
 static ComlinStatus
-comlin_edit_clear_line(ComlinState* const l)
+comlin_edit_clear_line_backwards(ComlinState* const l)
 {
-    l->buf.data[0] = '\0';
-    l->pos = l->buf.length = 0;
-    return refresh_line(l);
+    if (l->pos > 0) {
+        size_t const new_length = l->buf.length - l->pos;
+        memmove(l->buf.data, l->buf.data + l->pos, new_length + 1);
+        l->buf.length = new_length;
+        l->pos = 0;
+        return refresh_line(l);
+    }
+    return COMLIN_SUCCESS;
 }
 
 static ComlinStatus
-comlin_edit_clear_to_end_of_line(ComlinState* const l)
+comlin_edit_clear_line_forwards(ComlinState* const l)
 {
     if (l->pos < l->buf.length) {
         l->buf.data[l->pos] = '\0';
@@ -980,7 +985,7 @@ comlin_edit_control(ComlinState* const state, char const c)
       comlin_edit_backspace,            // ^H
       NULL,                             // ^I
       comlin_edit_submit,               // ^J
-      comlin_edit_clear_to_end_of_line, // ^K
+      comlin_edit_clear_line_forwards,  // ^K
       comlin_edit_clear_screen,         // ^L
       comlin_edit_submit,               // ^M
       comlin_edit_history_next,         // ^N
@@ -990,7 +995,7 @@ comlin_edit_control(ComlinState* const state, char const c)
       NULL,                             // ^R
       NULL,                             // ^S
       comlin_edit_transpose,            // ^T
-      comlin_edit_clear_line,           // ^U
+      comlin_edit_clear_line_backwards, // ^U
       NULL,                             // ^V
       comlin_edit_delete_prev_word,     // ^W
       NULL,                             // ^X
