@@ -7,7 +7,6 @@
 #include <sys/select.h>
 #include <unistd.h>
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,48 +26,6 @@ printString(char const* const str)
     write(1, str, strlen(str));
 }
 
-static void
-printKeyCodesLoop(void)
-{
-    char quit[4] = {' ', ' ', ' ', ' '};
-
-    fprintf(
-      stderr,
-      "Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
-
-    // Start an edit just to set the terminal to raw mode
-    ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"), 100U);
-    comlin_edit_start(state, "> ");
-
-    // Ignore it and process input keys ourselves
-    while (1) {
-        // Read an input character
-        char c = '\0';
-        ssize_t const nread = read(STDIN_FILENO, &c, 1);
-        if (nread <= 0) {
-            continue;
-        }
-
-        // Insert it as the rightmost in the buffer (pushing one off the left)
-        memmove(quit, quit + 1, sizeof(quit) - 1);
-        quit[sizeof(quit) - 1] = c;
-        if (memcmp(quit, "quit", sizeof(quit)) == 0) {
-            break;
-        }
-
-        // Print the key code and continue
-        fprintf(stderr,
-                "'%c' %02x (%d) (type quit to exit)\n\n",
-                isprint(c) ? c : '?',
-                (unsigned)c,
-                (int)c);
-    }
-
-    // Reset terminal mode
-    comlin_edit_stop(state);
-    comlin_free_state(state);
-}
-
 int
 main(int argc, char** argv)
 {
@@ -85,9 +42,6 @@ main(int argc, char** argv)
         if (!strcmp(*argv, "--multiline")) {
             multiline = 1;
             printString("Multi-line mode enabled.\n");
-        } else if (!strcmp(*argv, "--keycodes")) {
-            printKeyCodesLoop();
-            return 0;
         } else if (!strcmp(*argv, "--async")) {
             async = 1;
         } else {
