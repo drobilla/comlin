@@ -19,10 +19,10 @@ foreach name : history_test_names
     run_test_py,
     args: [
       ['--history', files(name + '.hist.txt')],
+      in_file,
       out_file,
       test_comlin,
       ['--restore', restore_file],
-      in_file,
     ],
     suite: ['io', 'history'],
   )

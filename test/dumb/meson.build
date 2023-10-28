@@ -14,7 +14,7 @@ foreach name : dumb_test_names
   test(
     name,
     run_test_py,
-    args: [out_file, test_comlin, '--dumb', in_file],
+    args: [in_file, out_file, test_comlin, '--dumb'],
     suite: ['io', 'dumb'],
   )
 endforeach
