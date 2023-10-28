@@ -94,24 +94,11 @@ static ComlinStatus
 refresh_line_with_flags(ComlinState* l, unsigned flags);
 
 typedef enum {
-    KEY_NULL = 0, // ^@ (NUL)
-    CTRL_A = 1,   // ^A (SOH)
-    CTRL_B = 2,   // ^B (STX)
     CTRL_C = 3,   // ^C (ETX)
     CTRL_D = 4,   // ^D (EOT)
-    CTRL_E = 5,   // ^E (ENQ)
-    CTRL_F = 6,   // ^F (ACK)
-    CTRL_H = 8,   // ^H (BS)
     TAB = 9,      // ^I (HT) - Tab
     LFEED = 10,   // ^J (LF) - Usually "Enter" or "Return"
-    CTRL_K = 11,  // ^K (VT)
-    CTRL_L = 12,  // ^L (FF)
     CRETURN = 13, // ^M (CR) - Carriage Return
-    CTRL_N = 14,  // ^N (SO)
-    CTRL_P = 16,  // ^P (DLE)
-    CTRL_T = 20,  // ^T (DC4)
-    CTRL_U = 21,  // ^U (NAK)
-    CTRL_W = 23,  // ^W (ETB)
     ESC = 27,     // ^[ (ESC)
     DEL = 127     // ^? (DEL) - Usually "Backspace"
 } ControlCharacter;
