@@ -169,7 +169,7 @@ write_string(int const fd, char const* const buf, size_t const count)
     return COMLIN_SUCCESS;
 }
 
-/// Set terminal to raw input mode and preserve the original settings
+// Set terminal to raw input mode and preserve the original settings
 static ComlinStatus
 enable_raw_mode(ComlinState* const state)
 {
@@ -302,7 +302,7 @@ comlin_beep(ComlinState const* const state)
 
 /* Completion */
 
-// Free a list of completion option populated by comlinAddCompletion()
+// Free a list of completion option populated by comlin_add_completion()
 static void
 free_completions(ComlinCompletions* const lc)
 {
@@ -427,9 +427,7 @@ comlin_add_completion(ComlinCompletions* const lc, char const* const str)
     return COMLIN_SUCCESS;
 }
 
-/*
- * String Buffer
- */
+/* String Buffer */
 
 static void
 buf_append(StringBuf* const buf, char const* const s, size_t const len)
@@ -474,6 +472,8 @@ append_line_text(StringBuf* const buf,
         buf_append(buf, text, length);
     }
 }
+
+/* Refresh */
 
 // Clear and refresh the current line in single-line mode
 static ComlinStatus
@@ -892,6 +892,8 @@ comlin_edit_submit(ComlinState* const l)
     return COMLIN_SUCCESS;
 }
 
+/* State */
+
 ComlinState*
 comlin_new_state(int const in_fd,
                  int const out_fd,
@@ -909,6 +911,22 @@ comlin_new_state(int const in_fd,
         l->buf.size = l->cols;
     }
     return l;
+}
+
+void
+comlin_free_state(ComlinState* const state)
+{
+    // Free history
+    for (size_t j = 0U; j < state->history_len; ++j) {
+        free(state->history[j]);
+    }
+    free(state->history);
+
+    // Disable raw mode if it was enabled by comlin_new_state
+    disable_raw_mode(state);
+
+    free(state->buf.data);
+    free(state);
 }
 
 ComlinStatus
@@ -1215,20 +1233,4 @@ comlin_history_load(ComlinState* const state, char const* const filename)
 
     buf_free(&buf);
     return close(fd) < 0 ? COMLIN_BAD_WRITE : st;
-}
-
-void
-comlin_free_state(ComlinState* const state)
-{
-    // Free history
-    for (size_t j = 0U; j < state->history_len; ++j) {
-        free(state->history[j]);
-    }
-    free(state->history);
-
-    // Disable raw mode if it was enabled by comlinNew
-    disable_raw_mode(state);
-
-    free(state->buf.data);
-    free(state);
 }
