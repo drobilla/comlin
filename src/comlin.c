@@ -555,7 +555,7 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
     if (flags & REFRESH_CLEAN) {
         // Go to the last row
         if (old_rows > rpos) {
-            snprintf(seq, 64, VTESC "%zuB", old_rows - rpos);
+            snprintf(seq, sizeof(seq), VTESC "%zuB", old_rows - rpos);
             buf_append(&update, seq, strlen(seq));
         }
 
@@ -587,16 +587,16 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
         // Move the cursor up to the correct row if necessary
         size_t const rpos2 = (l->plen + l->pos + l->cols) / l->cols;
         if (rows > rpos2) {
-            snprintf(seq, 64, VTESC "%zuA", rows - rpos2);
+            snprintf(seq, sizeof(seq), VTESC "%zuA", rows - rpos2);
             buf_append(&update, seq, strlen(seq));
         }
 
         // Move the cursor to the correct column
         size_t const col = (l->plen + l->pos) % l->cols;
         if (col) {
-            snprintf(seq, 64, "\r" VTESC "%zuC", col);
+            snprintf(seq, sizeof(seq), "\r" VTESC "%zuC", col);
         } else {
-            snprintf(seq, 64, "\r");
+            snprintf(seq, sizeof(seq), "\r");
         }
         buf_append(&update, seq, strlen(seq));
     }
