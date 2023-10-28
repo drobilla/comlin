@@ -37,7 +37,7 @@ extern "C" {
 /// Return status code
 typedef enum {
     COMLIN_SUCCESS,      ///< Success
-    COMLIN_READING,      ///< Reading continues
+    COMLIN_EDITING,      ///< User is editing input
     COMLIN_END,          ///< End of input reached
     COMLIN_INTERRUPTED,  ///< Operation interrupted
     COMLIN_NO_MEMORY,    ///< Out of memory
@@ -145,11 +145,11 @@ comlin_edit_start(ComlinState* l, char const* prompt);
  * accordingly.  The return status indicates how to proceed:
  *
  * #COMLIN_SUCCESS: Line is entered and available via #comlin_text.
- * #COMLIN_READING: Reading should continue.
+ * #COMLIN_EDITING: Editing continues, further calls required.
  * #COMLIN_INTERRUPTED: Input interrupted with Ctrl-C.
  * #COMLIN_END: Input ended with Ctrl-D.
  *
- * @return #COMLIN_SUCCESS, #COMLIN_READING, #COMLIN_END, #COMLIN_INTERRUPTED,
+ * @return #COMLIN_SUCCESS, #COMLIN_EDITING, #COMLIN_END, #COMLIN_INTERRUPTED,
  * or an error if communicating with the terminal failed.
  */
 COMLIN_API ComlinStatus

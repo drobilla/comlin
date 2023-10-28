@@ -110,7 +110,7 @@ static const ComlinRefreshFlags REFRESH_WRITE = 1U << 1U;
 static const ComlinRefreshFlags REFRESH_ALL = 3U;
 
 static ComlinStatus
-refresh_line(ComlinState* l);
+comlin_edit_refresh(ComlinState* l);
 
 /* Terminal Communication */
 
@@ -370,7 +370,7 @@ complete_line(ComlinState* const ls, char const keypressed)
         case ESC:
             // Re-show original buffer
             if (ls->completion_idx < lc.len) {
-                refresh_line(ls);
+                comlin_edit_refresh(ls);
             }
             ls->in_completion = false;
             c = 0;
@@ -390,7 +390,7 @@ complete_line(ComlinState* const ls, char const keypressed)
         if (ls->in_completion) {
             refresh_line_with_completion(ls, &lc, REFRESH_ALL);
         } else {
-            refresh_line(ls);
+            comlin_edit_refresh(ls);
         }
     }
 
@@ -601,13 +601,6 @@ refresh_line_with_flags(ComlinState* const l, ComlinRefreshFlags const flags)
                      : refresh_single_line(l, flags);
 }
 
-// Clear and refresh the current line
-static ComlinStatus
-refresh_line(ComlinState* const l)
-{
-    return refresh_line_with_flags(l, REFRESH_ALL);
-}
-
 ComlinStatus
 comlin_hide(ComlinState* const l)
 {
@@ -628,6 +621,18 @@ comlin_show(ComlinState* const l)
 
 /* Editing Operations */
 
+static inline ComlinStatus
+edit_status(ComlinStatus const st)
+{
+    return st ? st : COMLIN_EDITING;
+}
+
+static ComlinStatus
+comlin_edit_refresh(ComlinState* const l)
+{
+    return edit_status(refresh_line_with_flags(l, REFRESH_ALL));
+}
+
 // Insert a character at the current cursor position
 static ComlinStatus
 comlin_edit_insert(ComlinState* const l, char const c)
@@ -640,7 +645,7 @@ comlin_edit_insert(ComlinState* const l, char const c)
             l->plen + l->buf.length < l->cols) {
             // Avoid a full update of the line in the trivial case
             char const d = (char)(l->maskmode ? '*' : c);
-            return write(l->ofd, &d, 1) == 1 ? COMLIN_READING
+            return write(l->ofd, &d, 1) == 1 ? COMLIN_EDITING
                                              : COMLIN_BAD_WRITE;
         }
     } else {
@@ -653,7 +658,7 @@ comlin_edit_insert(ComlinState* const l, char const c)
         ++l->pos;
     }
 
-    return refresh_line(l);
+    return comlin_edit_refresh(l);
 }
 
 // Move cursor one column to the left if possible
@@ -662,9 +667,9 @@ comlin_edit_move_left(ComlinState* const l)
 {
     if (l->pos > 0) {
         --l->pos;
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 // Move cursor one column to the right if possible
@@ -673,9 +678,9 @@ comlin_edit_move_right(ComlinState* const l)
 {
     if (l->pos != l->buf.length) {
         ++l->pos;
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 // Move cursor to the start of the line
@@ -684,9 +689,9 @@ comlin_edit_move_home(ComlinState* const l)
 {
     if (l->pos != 0) {
         l->pos = 0;
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 // Move cursor to the end of the line
@@ -695,9 +700,9 @@ comlin_edit_move_end(ComlinState* const l)
 {
     if (l->pos != l->buf.length) {
         l->pos = l->buf.length;
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 // Transpose the character under the cursor with the previous character
@@ -711,9 +716,9 @@ comlin_edit_transpose(ComlinState* const state)
         if (state->pos != state->buf.length - 1U) {
             ++state->pos;
         }
-        return refresh_line(state);
+        return edit_status(comlin_edit_refresh(state));
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 typedef enum {
@@ -734,7 +739,7 @@ comlin_edit_history_step(ComlinState* const l, ComlinHistoryDirection const dir)
         // Show the new entry
         if (dir == COMLIN_HISTORY_NEXT) {
             if (l->history_index == 0) {
-                return COMLIN_SUCCESS;
+                return COMLIN_EDITING;
             }
             --l->history_index;
         } else {
@@ -742,7 +747,7 @@ comlin_edit_history_step(ComlinState* const l, ComlinHistoryDirection const dir)
         }
         if (l->history_index >= l->history_len) {
             l->history_index = l->history_len - 1U;
-            return COMLIN_SUCCESS;
+            return COMLIN_EDITING;
         }
 
         l->pos = strlen(l->history[l->history_len - 1U - l->history_index]);
@@ -750,9 +755,9 @@ comlin_edit_history_step(ComlinState* const l, ComlinHistoryDirection const dir)
         buf_append(
           &l->buf, l->history[l->history_len - 1U - l->history_index], l->pos);
         l->buf.data[l->pos] = '\0';
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 static ComlinStatus
@@ -785,9 +790,9 @@ comlin_edit_delete(ComlinState* const l)
                 l->buf.length - l->pos - 1U);
         --l->buf.length;
         l->buf.data[l->buf.length] = '\0';
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 static ComlinStatus
@@ -819,9 +824,9 @@ comlin_edit_backspace(ComlinState* const l)
         --l->pos;
         --l->buf.length;
         l->buf.data[l->buf.length] = '\0';
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 // Delete the word before the cursor
@@ -841,7 +846,7 @@ comlin_edit_delete_prev_word(ComlinState* const l)
             l->buf.data + old_pos,
             l->buf.length + 1U - old_pos);
     l->buf.length -= diff;
-    return refresh_line(l);
+    return comlin_edit_refresh(l);
 }
 
 static ComlinStatus
@@ -849,7 +854,7 @@ comlin_edit_clear_screen(ComlinState* const state)
 {
     const ComlinStatus st = comlin_clear_screen(state);
 
-    return st ? st : refresh_line(state);
+    return st ? st : edit_status(comlin_edit_refresh(state));
 }
 
 static ComlinStatus
@@ -860,9 +865,9 @@ comlin_edit_clear_line_backwards(ComlinState* const l)
         memmove(l->buf.data, l->buf.data + l->pos, new_length + 1);
         l->buf.length = new_length;
         l->pos = 0;
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 static ComlinStatus
@@ -871,9 +876,9 @@ comlin_edit_clear_line_forwards(ComlinState* const l)
     if (l->pos < l->buf.length) {
         l->buf.data[l->pos] = '\0';
         l->buf.length = l->pos;
-        return refresh_line(l);
+        return comlin_edit_refresh(l);
     }
-    return COMLIN_SUCCESS;
+    return COMLIN_EDITING;
 }
 
 static ComlinStatus
@@ -956,17 +961,11 @@ comlin_edit_read_dumb(ComlinState* const l, char const c)
 
     write(l->ofd, &c, 1U);
     buf_append(&l->buf, &c, 1U);
-    return COMLIN_READING;
+    return COMLIN_EDITING;
 }
 
 static ComlinStatus
 comlin_edit_read_escape(ComlinState* l);
-
-static inline ComlinStatus
-control_status(ComlinStatus const st)
-{
-    return st ? st : COMLIN_READING;
-}
 
 static ComlinStatus
 comlin_edit_control(ComlinState* const state, char const c)
@@ -1009,7 +1008,7 @@ comlin_edit_control(ComlinState* const state, char const c)
     };
 
     ControlHandler const handler = control_handlers[(unsigned)c];
-    return handler ? handler(state) : COMLIN_READING;
+    return handler ? handler(state) : COMLIN_EDITING;
 }
 
 ComlinStatus
@@ -1033,15 +1032,13 @@ comlin_edit_feed(ComlinState* const l)
             return COMLIN_BAD_READ;
         }
         if (c == 0) {
-            return COMLIN_READING;
+            return COMLIN_EDITING;
         }
     }
 
-    return (c == LFEED || c == CRETURN)
-             ? comlin_edit_submit(l)
-             : control_status((c < 0x20)   ? comlin_edit_control(l, c)
-                              : (c == DEL) ? comlin_edit_backspace(l)
-                                           : comlin_edit_insert(l, c));
+    return (c < 0x20)   ? comlin_edit_control(l, c)
+           : (c == DEL) ? comlin_edit_backspace(l)
+                        : comlin_edit_insert(l, c);
 }
 
 static ComlinStatus
@@ -1113,7 +1110,7 @@ comlin_read_line(ComlinState* const state, char const* const prompt)
     if (!st0) {
         do {
             st0 = comlin_edit_feed(state);
-        } while (st0 == COMLIN_READING);
+        } while (st0 == COMLIN_EDITING);
 
         st1 = comlin_edit_stop(state);
     }
