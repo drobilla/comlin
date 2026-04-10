@@ -3,7 +3,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/select.h>
-#include "linenoise.h"
+#include "linenoise/linenoise.h"
 
 void completion(const char *buf, linenoiseCompletions *lc) {
     if (buf[0] == 'h') {
