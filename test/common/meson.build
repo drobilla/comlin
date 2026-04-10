@@ -7,6 +7,7 @@ common_test_names = [
   'CaCa',
   'CaCe',
   'CaCt',
+  'CaCu',
   'Cb',
   'CbCbCt',
   'CbCd',
