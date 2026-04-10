@@ -128,6 +128,24 @@ comlinSetMultiLine(ComlinState* const comlin, const int ml)
     comlin->mlmode = ml;
 }
 
+static int
+write_string(const int fd, const char* const buf, const size_t count)
+{
+    size_t offset = 0U;
+    size_t remaining = count;
+    while (remaining > 0) {
+        const int r = write(fd, buf + offset, remaining);
+        if (r < 0) {
+            return r;
+        }
+
+        remaining -= (size_t)r;
+        offset += (size_t)r;
+    }
+
+    return 0;
+}
+
 /* Return true if the terminal name is in the list of terminals we know are
  * not able to understand basic escape sequences. */
 static int
@@ -200,7 +218,7 @@ getCursorPosition(int ifd, int ofd)
     unsigned int i = 0;
 
     // Report cursor location
-    if (write(ofd, "\x1B[6n", 4) != 4) {
+    if (write_string(ofd, "\x1B[6n", 4)) {
         return -1;
     }
 
@@ -245,7 +263,7 @@ getColumns(int ifd, int ofd)
         }
 
         // Go to right margin and get position
-        if (write(ofd, "\x1B[999C", 6) != 6) {
+        if (write_string(ofd, "\x1B[999C", 6)) {
             goto failed;
         }
         int cols = getCursorPosition(ifd, ofd);
@@ -257,8 +275,8 @@ getColumns(int ifd, int ofd)
         if (cols > start) {
             char seq[32];
             snprintf(seq, 32, "\x1B[%dD", cols - start);
-            if (write(ofd, seq, strlen(seq)) == -1) {
-                // Can't recover..
+            if (write_string(ofd, seq, strlen(seq))) {
+                // Failed to restore position, oh well
             }
         }
         return cols;
@@ -273,8 +291,8 @@ failed:
 void
 comlinClearScreen(ComlinState* const state)
 {
-    if (write(state->ofd, "\x1B[H\x1B[2J", 7) <= 0) {
-        // Nothing to do, just to avoid warning
+    if (write_string(state->ofd, "\x1B[H\x1B[2J", 7)) {
+        // Failed to clear screen, oh well
     }
 }
 
@@ -580,8 +598,10 @@ refreshSingleLine(ComlinState* const l, unsigned flags)
         abAppend(&ab, seq, strlen(seq));
     }
 
-    if (write(fd, ab.b, ab.len) == -1) {
-    } // Can't recover from write error
+    if (write_string(fd, ab.b, ab.len)) {
+        // Failed to write to terminal, this is bad and should be reported...
+    }
+
     abFree(&ab);
 }
 
@@ -676,8 +696,10 @@ refreshMultiLine(ComlinState* const l, unsigned flags)
 
     l->oldpos = l->pos;
 
-    if (write(fd, ab.b, ab.len) == -1) {
-    } // Can't recover from write error
+    if (write_string(fd, ab.b, ab.len)) {
+        // Failed to write to terminal, this is bad and should be reported...
+    }
+
     abFree(&ab);
 }
 
@@ -737,7 +759,7 @@ comlinEditInsert(ComlinState* const l, char c)
                 /* Avoid a full update of the line in the
                  * trivial case. */
                 char d = (l->maskmode == 1) ? '*' : c;
-                if (write(l->ofd, &d, 1) == -1) {
+                if (write(l->ofd, &d, 1) != 1) {
                     return -1;
                 }
             } else {
@@ -921,7 +943,7 @@ comlinEditStart(ComlinState* const l)
     comlinHistoryAdd(l, "");
 
     // Write prompt
-    return write(l->ofd, l->prompt, l->plen) == -1 ? -1 : 0;
+    return write_string(l->ofd, l->prompt, l->plen);
 }
 
 char* comlinEditMore =
@@ -1207,7 +1229,7 @@ comlinReadLine(ComlinState* const state, const char* const prompt)
 
     if (isUnsupportedTerm()) {
         const size_t prompt_len = strlen(prompt);
-        if (write(state->ofd, prompt, prompt_len) != (ssize_t)prompt_len) {
+        if (write_string(state->ofd, prompt, prompt_len)) {
             return NULL;
         }
         if (fgets(buf, COMLIN_MAX_LINE, stdin) == NULL) {
