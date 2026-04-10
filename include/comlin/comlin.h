@@ -108,6 +108,8 @@ comlin_free_state(ComlinState* state);
  *
  * This can be used to adjust the behaviour of the command line.  The changed
  * mode will be applied on the next call to a read or edit function.
+ *
+ * @return #COMLIN_SUCCESS.
  */
 COMLIN_API ComlinStatus
 comlin_set_mode(ComlinState* state, ComlinModeFlags flags);
@@ -162,6 +164,9 @@ comlin_edit_feed(ComlinState* l);
  * necessary, and resets the state for another read.  After this,
  * #comlin_edit_feed can no longer be called until a new edit is started, but
  * if a line was entered it is still available via #comlin_text.
+ *
+ * @return #COMLIN_SUCCESS if editing was finished, or an error if writing to
+ * the terminal failed.
  */
 COMLIN_API ComlinStatus
 comlin_edit_stop(ComlinState* l);
@@ -184,6 +189,9 @@ comlin_text(ComlinState const* l);
  * This clears the pending input from the screen and resets the terminal mode
  * if necessary.  Then, the application can write its own output, but
  * #comlin_edit_feed can't be called until the edit is resumed by #comlin_show.
+ *
+ * @return #COMLIN_SUCCESS if editing was paused and the input line hidden, or
+ * an error if writing to the terminal failed.
  */
 COMLIN_API ComlinStatus
 comlin_hide(ComlinState* l);
@@ -193,6 +201,9 @@ comlin_hide(ComlinState* l);
  * This will prepare the terminal if necessary, and show the prompt and current
  * line with the cursor where it was.  Then, #comlin_edit_feed can be called
  * again to read more input.
+ *
+ * @return #COMLIN_SUCCESS if editing was resumed and the input line shown, or
+ * an error if writing to the terminal failed.
  */
 COMLIN_API ComlinStatus
 comlin_show(ComlinState* l);
@@ -209,7 +220,8 @@ comlin_show(ComlinState* l);
  * the line editing function or uses dummy fgets() so that you will be able to
  * type something even in the most desperate of the conditions.
  *
- * @return #COMLIN_SUCCESS, or an error if reading from the terminal fails.
+ * @return #COMLIN_SUCCESS if a line was successfully read and is available via
+ * #comlin_text, or an error if reading from the terminal failed.
  */
 COMLIN_API ComlinStatus
 comlin_read_line(ComlinState* state, char const* prompt);
@@ -242,6 +254,9 @@ comlin_set_completion_callback(ComlinState* state,
  *
  * This is used by completion callback to add completion options given the
  * input string when the user pressed `TAB`.
+ *
+ * @return #COMLIN_SUCCESS if the completion was added, or #COMLIN_NO_MEMORY if
+ * memory allocation failed.
  */
 COMLIN_API ComlinStatus
 comlin_add_completion(ComlinCompletions* lc, char const* str);
@@ -256,20 +271,25 @@ comlin_add_completion(ComlinCompletions* lc, char const* str);
  *
  * The new entry will be added to the history in memory, which can later be
  * saved explicitly with #comlin_history_save.
+ *
+ * @return #COMLIN_SUCCESS if the line was added to the history, or
+ * #COMLIN_NO_MEMORY if no memory is available for the new entry.
  */
 COMLIN_API ComlinStatus
 comlin_history_add(ComlinState* state, char const* line);
 
 /** Save the history in the specified file.
  *
- * @return 0 on success, otherwise -1.
+ * @return #COMLIN_SUCCESS if the history was saved, #COMLIN_NO_FILE if the
+ * file couldn't be opened, or #COMLIN_BAD_WRITE if a write error occurred.
  */
 COMLIN_API ComlinStatus
 comlin_history_save(ComlinState const* state, char const* filename);
 
 /** Load the history from the specified file.
  *
- * @return 0 on success, otherwise -1.
+ * @return #COMLIN_SUCCESS if the history was loaded, #COMLIN_NO_FILE if file
+ * couldn't be opened, or #COMLIN_BAD_READ if a read error occurred.
  */
 COMLIN_API ComlinStatus
 comlin_history_load(ComlinState* state, char const* filename);
@@ -280,7 +300,11 @@ comlin_history_load(ComlinState* state, char const* filename);
    @{
 */
 
-/// Clear the screen
+/** Clear the screen.
+ *
+ * @return #COMLIN_SUCCESS if the screen was cleared, or #COMLIN_BAD_WRITE if a
+ * write error occurred.
+ */
 COMLIN_API ComlinStatus
 comlin_clear_screen(ComlinState* state);
 
