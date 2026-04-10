@@ -31,15 +31,12 @@
 
 #define COMLIN_MAX_LINE 4096
 
-/* We define a very simple "append buffer" structure, that is an heap
- * allocated string where we can append to. This is useful in order to
- * write all the escape sequences in a buffer and flush them to the standard
- * output in a single call, to avoid flickering effects. */
-struct abuf {
+// A resizable buffer that contains a string
+typedef struct {
     char* data;    ///< Pointer to string buffer
     size_t length; ///< Length of string (not greater than size)
     size_t size;   ///< Size of data
-};
+} StringBuf;
 
 struct ComlinStateImpl {
     // Completion
@@ -61,7 +58,7 @@ struct ComlinStateImpl {
 
     // Line editing state
     struct termios cooked; ///< Terminal settings before raw mode
-    struct abuf buf;       ///< Editing line buffer
+    StringBuf buf;         ///< Editing line buffer
     char const* prompt;    ///< Prompt to display
     size_t plen;           ///< Prompt length
     size_t pos;            ///< Current cursor position
@@ -77,7 +74,7 @@ struct ComlinStateImpl {
 static char const* const unsupported_term[] = {"dumb", "cons25", "emacs", NULL};
 
 static ComlinStatus
-ab_append(struct abuf* ab, char const* s, size_t len);
+buf_append(StringBuf* buf, char const* s, size_t len);
 
 static void
 refresh_line_with_completion(ComlinState* ls,
@@ -355,7 +352,7 @@ refresh_line_with_completion(ComlinState* const ls,
     // Show the edited line with completion if possible, or just refresh
     if (ls->completion_idx < lc->len) {
         size_t const saved_pos = ls->pos;
-        struct abuf const saved_buf = ls->buf;
+        StringBuf const saved_buf = ls->buf;
         ls->buf.data = lc->cvec[ls->completion_idx];
         ls->pos = ls->buf.length = strlen(ls->buf.data);
         refresh_line_with_flags(ls, flags);
@@ -420,7 +417,7 @@ complete_line(ComlinState* const ls, char const keypressed)
             if (ls->completion_idx < lc.len) {
                 ls->pos = strlen(lc.cvec[ls->completion_idx]);
                 ls->buf.length = 0U;
-                ab_append(&ls->buf, lc.cvec[ls->completion_idx], ls->pos);
+                buf_append(&ls->buf, lc.cvec[ls->completion_idx], ls->pos);
             }
             ls->in_completion = false;
             break;
@@ -469,44 +466,44 @@ comlin_add_completion(ComlinCompletions* const lc, char const* const str)
 /* =========================== Line editing ================================= */
 
 static ComlinStatus
-ab_append(struct abuf* const ab, char const* const s, size_t const len)
+buf_append(StringBuf* const buf, char const* const s, size_t const len)
 {
-    size_t const new_length = ab->length + len;
+    size_t const new_length = buf->length + len;
     size_t const needed_size = new_length + 1U;
-    if (!ab->data || needed_size > ab->size) {
-        char* const new_data = (char*)realloc(ab->data, needed_size);
+    if (!buf->data || needed_size > buf->size) {
+        char* const new_data = (char*)realloc(buf->data, needed_size);
         if (!new_data) {
             return COMLIN_BAD_ALLOC;
         }
 
-        ab->data = new_data;
-        ab->size = needed_size;
+        buf->data = new_data;
+        buf->size = needed_size;
     }
 
-    memcpy(ab->data + ab->length, s, len);
-    ab->data[new_length] = '\0';
-    ab->length = new_length;
+    memcpy(buf->data + buf->length, s, len);
+    buf->data[new_length] = '\0';
+    buf->length = new_length;
     return COMLIN_SUCCESS;
 }
 
 static void
-ab_free(struct abuf* ab)
+buf_free(StringBuf* const buf)
 {
-    free(ab->data);
+    free(buf->data);
 }
 
 static void
-append_line_text(struct abuf* const buffer,
+append_line_text(StringBuf* const buf,
                  char const* const text,
                  size_t const length,
                  bool const masked)
 {
     if (masked) {
         for (size_t i = 0U; i < length; ++i) {
-            ab_append(buffer, "*", 1);
+            buf_append(buf, "*", 1);
         }
     } else {
-        ab_append(buffer, text, length);
+        buf_append(buf, text, length);
     }
 }
 
@@ -534,32 +531,32 @@ refresh_single_line(ComlinState const* const l, unsigned const flags)
     }
 
     // We'll build the update here, then send it all in a single write
-    struct abuf ab = {NULL, 0U, 0U};
+    StringBuf update = {NULL, 0U, 0U};
     char seq[64] = {0};
 
     // Move cursor to left edge
-    ab_append(&ab, "\r", 1);
+    buf_append(&update, "\r", 1);
 
     if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Write the prompt and the current buffer content
-        ab_append(&ab, l->prompt, l->plen);
-        append_line_text(&ab, buf, len, l->maskmode);
+        buf_append(&update, l->prompt, l->plen);
+        append_line_text(&update, buf, len, l->maskmode);
     }
 
     // Erase to right
-    ab_append(&ab, "\x1B[0K", 4);
+    buf_append(&update, "\x1B[0K", 4);
 
     if (l->buf.data && (flags & REFRESH_WRITE)) {
         // Move cursor to original position
         snprintf(seq, sizeof(seq), "\r\x1B[%dC", (int)(pos + l->plen));
-        ab_append(&ab, seq, strlen(seq));
+        buf_append(&update, seq, strlen(seq));
     }
 
-    if (write_string(fd, ab.data, ab.length)) {
+    if (write_string(fd, update.data, update.length)) {
         // Failed to write to terminal, this is bad and should be reported...
     }
 
-    ab_free(&ab);
+    buf_free(&update);
 }
 
 /* Multi line low level line refresh.
@@ -583,7 +580,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
     l->oldrows = rows;
 
     // We'll build the update here, then send it all in a single write
-    struct abuf ab = {NULL, 0U, 0U};
+    StringBuf update = {NULL, 0U, 0U};
     char seq[64] = {0};
 
     // First clear all the old used rows
@@ -591,35 +588,35 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
         // Go to the last row
         if (old_rows > rpos) {
             snprintf(seq, 64, "\x1B[%zuB", old_rows - rpos);
-            ab_append(&ab, seq, strlen(seq));
+            buf_append(&update, seq, strlen(seq));
         }
 
         // For each row, clear it, then move up
         for (size_t j = 1U; j < old_rows; ++j) {
-            ab_append(&ab, "\r\x1B[0K\x1B[1A", 9U);
+            buf_append(&update, "\r\x1B[0K\x1B[1A", 9U);
         }
     }
 
     // Move cursor to left edge
-    ab_append(&ab, "\r", 1);
+    buf_append(&update, "\r", 1);
 
     if ((flags & REFRESH_CLEAN) && !(flags & REFRESH_WRITE)) {
         // Clean the top line
         snprintf(seq, 64, "\x1B[0K");
-        ab_append(&ab, seq, strlen(seq));
+        buf_append(&update, seq, strlen(seq));
     } else {
         // Write the prompt and the current buffer content
-        ab_append(&ab, l->prompt, l->plen);
-        append_line_text(&ab, l->buf.data, l->buf.length, l->maskmode);
+        buf_append(&update, l->prompt, l->plen);
+        append_line_text(&update, l->buf.data, l->buf.length, l->maskmode);
 
         // Erase to right
-        ab_append(&ab, "\x1B[0K", 4U);
+        buf_append(&update, "\x1B[0K", 4U);
 
         /* If we are at the very end of the screen with our prompt, we need to
          * emit a newline and move the prompt to the first column. */
         if (l->pos && l->pos == l->buf.length &&
             (l->pos + plen) % l->cols == 0) {
-            ab_append(&ab, "\n\r", 2);
+            buf_append(&update, "\n\r", 2);
             ++rows;
             if (rows > l->oldrows) {
                 l->oldrows = rows;
@@ -633,7 +630,7 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
         // Go up till we reach the expected position
         if (rows > rpos2) {
             snprintf(seq, 64, "\x1B[%zuA", rows - rpos2);
-            ab_append(&ab, seq, strlen(seq));
+            buf_append(&update, seq, strlen(seq));
         }
 
         // Set column
@@ -643,16 +640,16 @@ refresh_multi_line(ComlinState* const l, unsigned const flags)
         } else {
             snprintf(seq, 64, "\r");
         }
-        ab_append(&ab, seq, strlen(seq));
+        buf_append(&update, seq, strlen(seq));
     }
 
     l->oldpos = l->pos;
 
-    if (write_string(fd, ab.data, ab.length)) {
+    if (write_string(fd, update.data, update.length)) {
         // Failed to write to terminal, this is bad and should be reported...
     }
 
-    ab_free(&ab);
+    buf_free(&update);
 }
 
 /* Calls the two low level functions refreshSingleLine() or
@@ -704,7 +701,7 @@ comlin_edit_insert(ComlinState* const l, char const c)
 {
     if (l->buf.length == l->pos) {
         // Insert at end of line
-        ComlinStatus const st = ab_append(&l->buf, &c, 1U);
+        ComlinStatus const st = buf_append(&l->buf, &c, 1U);
         if (st) {
             return st;
         }
@@ -722,7 +719,7 @@ comlin_edit_insert(ComlinState* const l, char const c)
 
     } else {
         // Insert in middle of line
-        ComlinStatus const st = ab_append(&l->buf, " ", 1U);
+        ComlinStatus const st = buf_append(&l->buf, " ", 1U);
         if (st) {
             return st;
         }
@@ -807,7 +804,7 @@ comlin_edit_history_next(ComlinState* const l, int const dir)
 
         l->pos = strlen(l->history[l->history_len - 1U - l->history_index]);
         l->buf.length = 0U;
-        ab_append(
+        buf_append(
           &l->buf, l->history[l->history_len - 1U - l->history_index], l->pos);
         l->buf.data[l->pos] = '\0';
         refresh_line(l);
@@ -943,7 +940,7 @@ comlin_edit_feed(ComlinState* const l)
             return COMLIN_END;
         default:
             write(l->ofd, &c, 1U);
-            ab_append(&l->buf, &c, 1U);
+            buf_append(&l->buf, &c, 1U);
             return COMLIN_READING;
         }
     }
