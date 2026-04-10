@@ -7,9 +7,7 @@ Checks: >
   -*-narrowing-conversions,
   -android-cloexec-fopen,
   -bugprone-multi-level-implicit-pointer-conversion,
-  -bugprone-signed-char-misuse,
   -bugprone-switch-missing-default-case,
-  -cert-str34-c,
   -hicpp-signed-bitwise,
   -readability-isolate-declaration,
 CheckOptions:
