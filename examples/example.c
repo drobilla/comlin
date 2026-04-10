@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
         } else if (!strncmp(line, "/unmask", 7)) {
             linenoiseMaskModeDisable();
         } else if (line[0] == '/') {
-            printf("Unreconized command: %s\n", line);
+            printf("Unrecognized command: %s\n", line);
         }
         free(line);
     }

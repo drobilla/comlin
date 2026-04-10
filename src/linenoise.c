@@ -365,7 +365,7 @@ static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseComple
  * If the function returns non-zero, the caller should handle the
  * returned value as a byte read from the standard input, and process
  * it as usually: this basically means that the function may return a byte
- * read from the termianl but not processed. Otherwise, if zero is returned,
+ * read from the terminal but not processed. Otherwise, if zero is returned,
  * the input was consumed by the completeLine() function to navigate the
  * possible completions, and the caller should read for the next characters
  * from stdin. */
@@ -424,7 +424,7 @@ void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
     completionCallback = fn;
 }
 
-/* Register a hits function to be called to show hits to the user at the
+/* Register a hints function to be called to show hints to the user at the
  * right of the prompt. */
 void linenoiseSetHintsCallback(linenoiseHintsCallback *fn) {
     hintsCallback = fn;
@@ -549,7 +549,7 @@ static void refreshSingleLine(struct linenoiseState *l, int flags) {
         } else {
             abAppend(&ab,buf,len);
         }
-        /* Show hits if any. */
+        /* Show hints if any. */
         refreshShowHints(&ab,l,plen);
     }
 
@@ -580,7 +580,7 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
     int rows = (plen+l->len+l->cols-1)/l->cols; /* rows used by current buf. */
     int rpos = (plen+l->oldpos+l->cols)/l->cols; /* cursor relative row. */
     int rpos2; /* rpos after refresh. */
-    int col; /* colum position, zero-based. */
+    int col; /* column position, zero-based. */
     int old_rows = l->oldrows;
     int fd = l->ofd, j;
     struct abuf ab;
@@ -620,7 +620,7 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
             abAppend(&ab,l->buf,l->len);
         }
 
-        /* Show hits if any. */
+        /* Show hints if any. */
         refreshShowHints(&ab,l,plen);
 
         /* If we are at the very end of the screen with our prompt, we need to
@@ -639,7 +639,7 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
         /* Move cursor to right position. */
         rpos2 = (plen+l->pos+l->cols)/l->cols; /* Current cursor relative row */
 
-        /* Go up till we reach the expected positon. */
+        /* Go up till we reach the expected position. */
         if (rows-rpos2 > 0) {
             snprintf(seq,64,"\x1b[%dA", rows-rpos2);
             abAppend(&ab,seq,strlen(seq));
@@ -801,7 +801,7 @@ static void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 static void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
@@ -828,7 +828,7 @@ static void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
  *    each time there is some data arriving in the standard input.
  *
  * The user can also call linenoiseEditHide() and linenoiseEditShow() if it
- * is required to show some input arriving asyncronously, without mixing
+ * is required to show some input arriving asynchronously, without mixing
  * it with the currently edited line.
  *
  * When linenoiseEditFeed() returns non-NULL, the user finished with the
@@ -1074,7 +1074,7 @@ void linenoiseEditStop(struct linenoiseState *l) {
 }
 
 /* This just implements a blocking loop for the multiplexed API.
- * In many applications that are not event-drivern, we can just call
+ * In many applications that are not event-driven, we can just call
  * the blocking linenoise API, wait for the user to complete the editing
  * and return the buffer. */
 static char *linenoiseBlockingEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)

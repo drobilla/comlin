@@ -22,7 +22,7 @@ So what usually happens is either:
  
 The result is a pollution of binaries without line editing support.
 
-So I spent more or less two hours doing a reality check resulting in this little library: is it *really* needed for a line editing library to be 20k lines of code? Apparently not, it is possibe to get a very small, zero configuration, trivial to embed library, that solves the problem. Smaller programs will just include this, supporting line editing out of the box. Larger programs may use this little library or just checking with configure if readline/libedit is available and resorting to Linenoise if not.
+So I spent more or less two hours doing a reality check resulting in this little library: is it *really* needed for a line editing library to be 20k lines of code? Apparently not, it is possible to get a very small, zero configuration, trivial to embed library, that solves the problem. Smaller programs will just include this, supporting line editing out of the box. Larger programs may use this little library or just checking with configure if readline/libedit is available and resorting to Linenoise if not.
 
 ## Terminals, in 2010.
 
@@ -109,7 +109,7 @@ Linenoise supporst history, so that the user does not have to retype
 again and again the same things, but can use the down and up arrows in order
 to search and re-edit already inserted lines of text.
 
-The followings are the history API calls:
+The following are the history API calls:
 
     int linenoiseHistoryAdd(const char *line);
     int linenoiseHistorySetMaxLen(int len);
@@ -220,7 +220,7 @@ a function to deallocate the hint string once used:
     void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *);
 
 The free hint callback will just receive the pointer and free the string
-as needed (depending on how the hits callback allocated it).
+as needed (depending on how the hints callback allocated it).
 
 As you can see in the example above, a `color` (in xterm color terminal codes)
 can be provided together with a `bold` attribute. If no color is set, the
@@ -300,7 +300,7 @@ void stdinHasSomeData(void) {
 
 Now that we have a way to avoid blocking in the user input, we can use
 two calls to hide/show the edited line, so that it is possible to also
-show some input that we received (from socekts, bluetooth, whatever) on
+show some input that we received (from sockets, bluetooth, whatever) on
 screen:
 
     linenoiseHide(&ls);
