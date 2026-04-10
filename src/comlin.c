@@ -24,7 +24,6 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,30 +32,52 @@
 #define COMLIN_DEFAULT_HISTORY_MAX_LEN 100
 #define COMLIN_MAX_LINE 4096
 
+struct ComlinStateImpl {
+    // Callbacks
+    comlinCompletionCallback* completionCallback; ///< Get completions
+    comlinHintsCallback* hintsCallback;           ///< Get hints
+    comlinFreeHintsCallback* freeHintsCallback;   ///< Free hint
+
+    // Terminal session state
+    int ifd;      ///< Terminal stdin file descriptor
+    int ofd;      ///< Terminal stdout file descriptor
+    size_t cols;  ///< Number of columns in terminal
+    int maskmode; ///< Show asterisks instead of input (for passwords)
+    int rawmode;  ///< Terminal is currently in raw mode
+    int mlmode;   ///< Multi-line mode (default is single line)
+
+    // History
+    int history_max_len; ///< Maximum number of history entries to keep
+    int history_len;     ///< Number of history entries
+    char** history;      ///< History entries
+
+    // Line editing state
+    struct termios cooked; ///< Terminal settings before raw mode
+    char* buf;             ///< Editing line buffer
+    size_t buflen;         ///< Editing line buffer size
+    const char* prompt;    ///< Prompt to display
+    size_t plen;           ///< Prompt length
+    size_t pos;            ///< Current cursor position
+    size_t len;            ///< Current edited line length
+    int history_index;     ///< The history index we're currently editing
+    int in_completion;     ///< Currently doing a completion
+    size_t completion_idx; ///< Index of next completion to propose
+
+    // Multi-line refresh state
+    size_t oldpos;  ///< Previous refresh cursor position
+    size_t oldrows; ///< Rows used by last refreshed line (multi-line)
+};
+
 static const char* const unsupported_term[] = {"dumb", "cons25", "emacs", NULL};
-static comlinCompletionCallback* completionCallback = NULL;
-static comlinHintsCallback* hintsCallback = NULL;
-static comlinFreeHintsCallback* freeHintsCallback = NULL;
 
 static char*
 comlinNoTTY(void);
 
 static void
-refreshLineWithCompletion(struct comlinState* ls,
-                          comlinCompletions* lc,
-                          int flags);
+refreshLineWithCompletion(ComlinState* ls, comlinCompletions* lc, int flags);
 
 static void
-refreshLineWithFlags(struct comlinState* l, unsigned flags);
-
-static struct termios orig_termios; /* In order to restore at exit.*/
-static int maskmode = 0; // Show "***" instead of input (for passwords)
-static int rawmode = 0;  // For atexit() function to check if restore is needed
-static int mlmode = 0;   // Multi line mode (default is single line)
-static int atexit_registered = 0; // Register atexit just once
-static int history_max_len = COMLIN_DEFAULT_HISTORY_MAX_LEN;
-static int history_len = 0;
-static char** history = NULL;
+refreshLineWithFlags(ComlinState* l, unsigned flags);
 
 enum KEY_ACTION {
     KEY_NULL = 0,   // NULL
@@ -80,34 +101,31 @@ enum KEY_ACTION {
     BACKSPACE = 127 // Backspace
 };
 
-static void
-comlinAtExit(void);
-
 #define REFRESH_CLEAN (1U << 0U) // Clean the old prompt from the screen
 #define REFRESH_WRITE (1U << 1U) // Rewrite the prompt on the screen.
 #define REFRESH_ALL (REFRESH_CLEAN | REFRESH_WRITE) // Do both.
 
 static void
-refreshLine(struct comlinState* l);
+refreshLine(ComlinState* l);
 
 /* ======================= Low level terminal handling ====================== */
 
 void
-comlinMaskModeEnable(void)
+comlinMaskModeEnable(ComlinState* const comlin)
 {
-    maskmode = 1;
+    comlin->maskmode = 1;
 }
 
 void
-comlinMaskModeDisable(void)
+comlinMaskModeDisable(ComlinState* const comlin)
 {
-    maskmode = 0;
+    comlin->maskmode = 0;
 }
 
 void
-comlinSetMultiLine(int ml)
+comlinSetMultiLine(ComlinState* const comlin, const int ml)
 {
-    mlmode = ml;
+    comlin->mlmode = ml;
 }
 
 /* Return true if the terminal name is in the list of terminals we know are
@@ -130,25 +148,16 @@ isUnsupportedTerm(void)
     return 0;
 }
 
-// Raw mode: 1960 magic shit
+/// Set terminal to raw input mode and preserve the original settings
 static int
-enableRawMode(int fd)
+enableRawMode(ComlinState* const state)
 {
-    struct termios raw;
-
-    if (!isatty(STDIN_FILENO)) {
-        goto fatal;
+    // Save original terminal attributes
+    if (isatty(state->ifd) && tcgetattr(state->ifd, &state->cooked) == -1) {
+        return -1;
     }
 
-    if (!atexit_registered) {
-        atexit(comlinAtExit);
-        atexit_registered = 1;
-    }
-    if (tcgetattr(fd, &orig_termios) == -1) {
-        goto fatal;
-    }
-
-    raw = orig_termios;
+    struct termios raw = state->cooked;
     raw.c_iflag &= ~(tcflag_t)BRKINT; // No break
     raw.c_iflag &= ~(tcflag_t)ICRNL;  // No CR to NL
     raw.c_iflag &= ~(tcflag_t)INPCK;  // No parity check
@@ -164,24 +173,18 @@ enableRawMode(int fd)
     raw.c_cc[VTIME] = 0;              // No read timeout
 
     // Set raw terminal mode after flushing
-    if (tcsetattr(fd, TCSAFLUSH, &raw) < 0) {
-        goto fatal;
-    }
-
-    rawmode = 1;
-    return 0;
-
-fatal:
-    errno = ENOTTY;
-    return -1;
+    const int rc = tcsetattr(state->ifd, TCSAFLUSH, &raw);
+    state->rawmode = !rc;
+    return rc;
 }
 
 static void
-disableRawMode(int fd)
+disableRawMode(ComlinState* const state)
 {
     // Don't even check the return value as it's too late
-    if (rawmode && tcsetattr(fd, TCSAFLUSH, &orig_termios) != -1) {
-        rawmode = 0;
+    if (state->rawmode &&
+        tcsetattr(state->ifd, TCSAFLUSH, &state->cooked) != -1) {
+        state->rawmode = 0;
     }
 }
 
@@ -268,9 +271,9 @@ failed:
 }
 
 void
-comlinClearScreen(void)
+comlinClearScreen(ComlinState* const state)
 {
-    if (write(STDOUT_FILENO, "\x1B[H\x1B[2J", 7) <= 0) {
+    if (write(state->ofd, "\x1B[H\x1B[2J", 7) <= 0) {
         // Nothing to do, just to avoid warning
     }
 }
@@ -305,20 +308,20 @@ freeCompletions(comlinCompletions* lc)
  *
  * Flags are the same as refreshLine*(), that is REFRESH_* macros. */
 static void
-refreshLineWithCompletion(struct comlinState* ls,
+refreshLineWithCompletion(ComlinState* const ls,
                           comlinCompletions* lc,
                           int flags)
 {
     // Obtain the table of completions if the caller didn't provide one
     comlinCompletions ctable = {0, NULL};
     if (lc == NULL) {
-        completionCallback(ls->buf, &ctable);
+        ls->completionCallback(ls->buf, &ctable);
         lc = &ctable;
     }
 
     // Show the edited line with completion if possible, or just refresh
     if (ls->completion_idx < lc->len) {
-        struct comlinState saved = *ls;
+        ComlinState saved = *ls;
         ls->len = ls->pos = strlen(lc->cvec[ls->completion_idx]);
         ls->buf = lc->cvec[ls->completion_idx];
         refreshLineWithFlags(ls, flags);
@@ -350,12 +353,12 @@ refreshLineWithCompletion(struct comlinState* ls,
  * possible completions, and the caller should read for the next characters
  * from stdin. */
 static char
-completeLine(struct comlinState* ls, char keypressed)
+completeLine(ComlinState* const ls, char keypressed)
 {
     comlinCompletions lc = {0, NULL};
     char c = keypressed;
 
-    completionCallback(ls->buf, &lc);
+    ls->completionCallback(ls->buf, &lc);
     if (lc.len == 0) {
         comlinBeep();
         ls->in_completion = 0;
@@ -405,21 +408,23 @@ completeLine(struct comlinState* ls, char keypressed)
 }
 
 void
-comlinSetCompletionCallback(comlinCompletionCallback* fn)
+comlinSetCompletionCallback(ComlinState* const state,
+                            comlinCompletionCallback* const fn)
 {
-    completionCallback = fn;
+    state->completionCallback = fn;
 }
 
 void
-comlinSetHintsCallback(comlinHintsCallback* fn)
+comlinSetHintsCallback(ComlinState* const state, comlinHintsCallback* const fn)
 {
-    hintsCallback = fn;
+    state->hintsCallback = fn;
 }
 
 void
-comlinSetFreeHintsCallback(comlinFreeHintsCallback* fn)
+comlinSetFreeHintsCallback(ComlinState* const state,
+                           comlinFreeHintsCallback* const fn)
 {
-    freeHintsCallback = fn;
+    state->freeHintsCallback = fn;
 }
 
 void
@@ -483,13 +488,13 @@ abFree(struct abuf* ab)
 /* Helper of refreshSingleLine() and refreshMultiLine() to show hints
  * to the right of the prompt. */
 static void
-refreshShowHints(struct abuf* ab, struct comlinState* l, int plen)
+refreshShowHints(struct abuf* ab, ComlinState* l, int plen)
 {
     char seq[64];
-    if (hintsCallback && plen + l->len < l->cols) {
+    if (l->hintsCallback && plen + l->len < l->cols) {
         int color = -1;
         int bold = 0;
-        char* hint = hintsCallback(l->buf, &color, &bold);
+        char* hint = l->hintsCallback(l->buf, &color, &bold);
         if (hint) {
             int hintlen = strlen(hint);
             int hintmaxlen = l->cols - (plen + l->len);
@@ -511,8 +516,8 @@ refreshShowHints(struct abuf* ab, struct comlinState* l, int plen)
             }
 
             // Call the function to free the hint returned
-            if (freeHintsCallback) {
-                freeHintsCallback(hint);
+            if (l->freeHintsCallback) {
+                l->freeHintsCallback(hint);
             }
         }
     }
@@ -526,7 +531,7 @@ refreshShowHints(struct abuf* ab, struct comlinState* l, int plen)
  * Flags is REFRESH_* macros. The function can just remove the old
  * prompt, just write it, or both. */
 static void
-refreshSingleLine(struct comlinState* l, unsigned flags)
+refreshSingleLine(ComlinState* const l, unsigned flags)
 {
     char seq[64];
     size_t plen = strlen(l->prompt);
@@ -553,7 +558,7 @@ refreshSingleLine(struct comlinState* l, unsigned flags)
     if (flags & REFRESH_WRITE) {
         // Write the prompt and the current buffer content
         abAppend(&ab, l->prompt, strlen(l->prompt));
-        if (maskmode == 1) {
+        if (l->maskmode == 1) {
             while (len--) {
                 abAppend(&ab, "*", 1);
             }
@@ -587,7 +592,7 @@ refreshSingleLine(struct comlinState* l, unsigned flags)
  * Flags is REFRESH_* macros. The function can just remove the old
  * prompt, just write it, or both. */
 static void
-refreshMultiLine(struct comlinState* l, unsigned flags)
+refreshMultiLine(ComlinState* const l, unsigned flags)
 {
     char seq[64];
     int plen = strlen(l->prompt);
@@ -625,7 +630,7 @@ refreshMultiLine(struct comlinState* l, unsigned flags)
     if (flags & REFRESH_WRITE) {
         // Write the prompt and the current buffer content
         abAppend(&ab, l->prompt, strlen(l->prompt));
-        if (maskmode == 1) {
+        if (l->maskmode == 1) {
             for (unsigned i = 0; i < l->len; ++i) {
                 abAppend(&ab, "*", 1);
             }
@@ -678,9 +683,9 @@ refreshMultiLine(struct comlinState* l, unsigned flags)
 /* Calls the two low level functions refreshSingleLine() or
  * refreshMultiLine() according to the selected mode. */
 static void
-refreshLineWithFlags(struct comlinState* l, unsigned flags)
+refreshLineWithFlags(ComlinState* const l, unsigned flags)
 {
-    if (mlmode) {
+    if (l->mlmode) {
         refreshMultiLine(l, flags);
     } else {
         refreshSingleLine(l, flags);
@@ -689,15 +694,15 @@ refreshLineWithFlags(struct comlinState* l, unsigned flags)
 
 // Utility function to avoid specifying REFRESH_ALL all the times
 static void
-refreshLine(struct comlinState* l)
+refreshLine(ComlinState* const l)
 {
     refreshLineWithFlags(l, REFRESH_ALL);
 }
 
 void
-comlinHide(struct comlinState* l)
+comlinHide(ComlinState* const l)
 {
-    if (mlmode) {
+    if (l->mlmode) {
         refreshMultiLine(l, REFRESH_CLEAN);
     } else {
         refreshSingleLine(l, REFRESH_CLEAN);
@@ -705,7 +710,7 @@ comlinHide(struct comlinState* l)
 }
 
 void
-comlinShow(struct comlinState* l)
+comlinShow(ComlinState* const l)
 {
     if (l->in_completion) {
         refreshLineWithCompletion(l, NULL, REFRESH_WRITE);
@@ -718,7 +723,7 @@ comlinShow(struct comlinState* l)
  *
  * On error writing to the terminal -1 is returned, otherwise 0. */
 static int
-comlinEditInsert(struct comlinState* l, char c)
+comlinEditInsert(ComlinState* const l, char c)
 {
     if (l->len < l->buflen) {
         if (l->len == l->pos) {
@@ -726,10 +731,11 @@ comlinEditInsert(struct comlinState* l, char c)
             ++l->pos;
             ++l->len;
             l->buf[l->len] = '\0';
-            if ((!mlmode && l->plen + l->len < l->cols && !hintsCallback)) {
+            if ((!l->mlmode && l->plen + l->len < l->cols &&
+                 !l->hintsCallback)) {
                 /* Avoid a full update of the line in the
                  * trivial case. */
-                char d = (maskmode == 1) ? '*' : c;
+                char d = (l->maskmode == 1) ? '*' : c;
                 if (write(l->ofd, &d, 1) == -1) {
                     return -1;
                 }
@@ -750,7 +756,7 @@ comlinEditInsert(struct comlinState* l, char c)
 
 // Move cursor on the left
 static void
-comlinEditMoveLeft(struct comlinState* l)
+comlinEditMoveLeft(ComlinState* const l)
 {
     if (l->pos > 0) {
         --l->pos;
@@ -760,7 +766,7 @@ comlinEditMoveLeft(struct comlinState* l)
 
 // Move cursor on the right
 static void
-comlinEditMoveRight(struct comlinState* l)
+comlinEditMoveRight(ComlinState* const l)
 {
     if (l->pos != l->len) {
         ++l->pos;
@@ -770,7 +776,7 @@ comlinEditMoveRight(struct comlinState* l)
 
 // Move cursor to the start of the line
 static void
-comlinEditMoveHome(struct comlinState* l)
+comlinEditMoveHome(ComlinState* const l)
 {
     if (l->pos != 0) {
         l->pos = 0;
@@ -780,7 +786,7 @@ comlinEditMoveHome(struct comlinState* l)
 
 // Move cursor to the end of the line
 static void
-comlinEditMoveEnd(struct comlinState* l)
+comlinEditMoveEnd(ComlinState* const l)
 {
     if (l->pos != l->len) {
         l->pos = l->len;
@@ -793,12 +799,12 @@ comlinEditMoveEnd(struct comlinState* l)
 #define COMLIN_HISTORY_NEXT 0
 #define COMLIN_HISTORY_PREV 1
 static void
-comlinEditHistoryNext(struct comlinState* l, int dir)
+comlinEditHistoryNext(ComlinState* const l, int dir)
 {
-    if (history_len > 1) {
+    if (l->history_len > 1) {
         // Update the current history entry before overwriting it with the next
-        free(history[history_len - 1 - l->history_index]);
-        history[history_len - 1 - l->history_index] = strdup(l->buf);
+        free(l->history[l->history_len - 1 - l->history_index]);
+        l->history[l->history_len - 1 - l->history_index] = strdup(l->buf);
 
         // Show the new entry
         l->history_index += (dir == COMLIN_HISTORY_PREV) ? 1 : -1;
@@ -806,11 +812,12 @@ comlinEditHistoryNext(struct comlinState* l, int dir)
             l->history_index = 0;
             return;
         }
-        if (l->history_index >= history_len) {
-            l->history_index = history_len - 1;
+        if (l->history_index >= l->history_len) {
+            l->history_index = l->history_len - 1;
             return;
         }
-        strncpy(l->buf, history[history_len - 1 - l->history_index], l->buflen);
+        strncpy(
+          l->buf, l->history[l->history_len - 1 - l->history_index], l->buflen);
         l->buf[l->buflen - 1] = '\0';
         l->len = l->pos = strlen(l->buf);
         refreshLine(l);
@@ -820,7 +827,7 @@ comlinEditHistoryNext(struct comlinState* l, int dir)
 /* Delete the character at the right of the cursor without altering the cursor
  * position. Basically this is what happens with the "Delete" keyboard key. */
 static void
-comlinEditDelete(struct comlinState* l)
+comlinEditDelete(ComlinState* const l)
 {
     if (l->len > 0 && l->pos < l->len) {
         memmove(l->buf + l->pos, l->buf + l->pos + 1, l->len - l->pos - 1);
@@ -832,7 +839,7 @@ comlinEditDelete(struct comlinState* l)
 
 // Backspace implementation
 static void
-comlinEditBackspace(struct comlinState* l)
+comlinEditBackspace(ComlinState* const l)
 {
     if (l->pos > 0 && l->len > 0) {
         memmove(l->buf + l->pos - 1, l->buf + l->pos, l->len - l->pos);
@@ -846,7 +853,7 @@ comlinEditBackspace(struct comlinState* l)
 /* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 static void
-comlinEditDeletePrevWord(struct comlinState* l)
+comlinEditDeletePrevWord(ComlinState* const l)
 {
     size_t old_pos = l->pos;
 
@@ -862,54 +869,58 @@ comlinEditDeletePrevWord(struct comlinState* l)
     refreshLine(l);
 }
 
-int
-comlinEditStart(struct comlinState* l,
-                int stdin_fd,
-                int stdout_fd,
-                char* buf,
-                size_t buflen,
-                const char* prompt)
+ComlinState*
+comlinNewState(const int stdin_fd,
+               const int stdout_fd,
+               char* const buf,
+               const size_t buflen,
+               const char* prompt)
 {
-    /* Populate the state that we pass to functions implementing
-     * specific editing functionalities. */
-    l->in_completion = 0;
+    ComlinState* const l = (ComlinState*)calloc(1, sizeof(ComlinState));
+    if (!l) {
+        return NULL;
+    }
+
     l->ifd = stdin_fd != -1 ? stdin_fd : STDIN_FILENO;
     l->ofd = stdout_fd != -1 ? stdout_fd : STDOUT_FILENO;
+    l->history_max_len = COMLIN_DEFAULT_HISTORY_MAX_LEN;
     l->buf = buf;
     l->buflen = buflen;
     l->prompt = prompt;
     l->plen = strlen(prompt);
-    l->oldpos = l->pos = 0;
-    l->len = 0;
-
-    // Enter raw mode
-    if (enableRawMode(l->ifd) == -1) {
-        return -1;
-    }
-
-    l->cols = getColumns(stdin_fd, stdout_fd);
-    l->oldrows = 0;
-    l->history_index = 0;
 
     // Buffer starts empty
     l->buf[0] = '\0';
     --l->buflen; // Make sure there is always space for the nulterm
 
-    /* If stdin is not a tty, stop here with the initialization. We
-     * will actually just read a line from standard input in blocking
-     * mode later, in comlinEditFeed(). */
-    if (!isatty(l->ifd)) {
-        return 0;
+    return l;
+}
+
+int
+comlinEditStart(ComlinState* const l)
+{
+    // Enter raw mode
+    if (isatty(l->ifd) && enableRawMode(l) == -1) {
+        return -1;
+    }
+
+    // Reset line state
+    l->rawmode = 1;
+    l->buf[0] = '\0';
+    l->pos = 0U;
+    l->oldpos = 0U;
+    l->len = 0U;
+    l->oldrows = 0U;
+    if (!l->cols) {
+        l->cols = getColumns(l->ifd, l->ofd);
     }
 
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
-    comlinHistoryAdd("");
+    comlinHistoryAdd(l, "");
 
-    if (write(l->ofd, prompt, l->plen) == -1) {
-        return -1;
-    }
-    return 0;
+    // Write prompt
+    return write(l->ofd, l->prompt, l->plen) == -1 ? -1 : 0;
 }
 
 char* comlinEditMore =
@@ -918,7 +929,7 @@ char* comlinEditMore =
   "See the README file for more information.";
 
 char*
-comlinEditFeed(struct comlinState* l)
+comlinEditFeed(ComlinState* const l)
 {
     /* Not a TTY, pass control to line reading without character
      * count limits. */
@@ -942,7 +953,7 @@ comlinEditFeed(struct comlinState* l)
     /* Only autocomplete when the callback is set. It returns < 0 when
      * there was an error reading from fd. Otherwise it will return the
      * character that should be handled next. */
-    if ((l->in_completion || c == TAB) && completionCallback != NULL) {
+    if ((l->in_completion || c == TAB) && l->completionCallback != NULL) {
         c = completeLine(l, c);
         // Return on errors
         if (c < 0) {
@@ -956,18 +967,19 @@ comlinEditFeed(struct comlinState* l)
 
     switch (c) {
     case ENTER: // Enter
-        --history_len;
-        free(history[history_len]);
-        if (mlmode) {
+        --l->history_len;
+        free(l->history[l->history_len]);
+        if (l->mlmode) {
             comlinEditMoveEnd(l);
         }
-        if (hintsCallback) {
+
+        if (l->hintsCallback) {
             /* Force a refresh without hints to leave the previous
              * line as the user typed it after a newline. */
-            comlinHintsCallback* hc = hintsCallback;
-            hintsCallback = NULL;
+            comlinHintsCallback* hc = l->hintsCallback;
+            l->hintsCallback = NULL;
             refreshLine(l);
-            hintsCallback = hc;
+            l->hintsCallback = hc;
         }
         return strdup(l->buf);
     case CTRL_C: // Ctrl-c
@@ -982,8 +994,8 @@ comlinEditFeed(struct comlinState* l)
         if (l->len > 0) {
             comlinEditDelete(l);
         } else {
-            --history_len;
-            free(history[history_len]);
+            --l->history_len;
+            free(l->history[l->history_len]);
             errno = ENOENT;
             return NULL;
         }
@@ -1094,7 +1106,7 @@ comlinEditFeed(struct comlinState* l)
         comlinEditMoveEnd(l);
         break;
     case CTRL_L: // Ctrl+l, clear screen
-        comlinClearScreen();
+        comlinClearScreen(l);
         refreshLine(l);
         break;
     case CTRL_W: // Ctrl+w, delete previous word
@@ -1105,13 +1117,14 @@ comlinEditFeed(struct comlinState* l)
 }
 
 void
-comlinEditStop(struct comlinState* l)
+comlinEditStop(ComlinState* const l)
 {
-    if (!isatty(l->ifd)) {
-        return;
+    if (l->rawmode) {
+        disableRawMode(l);
+        if (write(l->ofd, "\n", 1) == -1) {
+            // Failed to write trailing newline, oh well
+        }
     }
-    disableRawMode(l->ifd);
-    printf("\n");
 }
 
 /* This just implements a blocking loop for the multiplexed API.
@@ -1119,62 +1132,23 @@ comlinEditStop(struct comlinState* l)
  * the blocking comlin API, wait for the user to complete the editing
  * and return the buffer. */
 static char*
-comlinBlockingEdit(int stdin_fd,
-                   int stdout_fd,
-                   char* buf,
-                   size_t buflen,
-                   const char* prompt)
+comlinBlockingEdit(ComlinState* const state)
 {
-    struct comlinState l = {0};
-
     // Editing without a buffer is invalid
-    if (buflen == 0) {
+    if (!state->buflen) {
         errno = EINVAL;
         return NULL;
     }
 
-    if (comlinEditStart(&l, stdin_fd, stdout_fd, buf, buflen, prompt) < 0) {
+    if (comlinEditStart(state) < 0) {
         return NULL;
     }
 
     char* res = NULL;
-    while ((res = comlinEditFeed(&l)) == comlinEditMore) {
+    while ((res = comlinEditFeed(state)) == comlinEditMore) {
     }
-    comlinEditStop(&l);
+    comlinEditStop(state);
     return res;
-}
-
-void
-comlinPrintKeyCodes(void)
-{
-    char quit[4];
-
-    printf("Comlin key codes debugging mode.\n"
-           "Press keys to see scan codes. Type 'quit' at any time to exit.\n");
-    if (enableRawMode(STDIN_FILENO) == -1) {
-        return;
-    }
-    memset(quit, ' ', 4);
-    while (1) {
-        char c = '\0';
-        const int nread = read(STDIN_FILENO, &c, 1);
-        if (nread <= 0) {
-            continue;
-        }
-        memmove(quit, quit + 1, sizeof(quit) - 1); // Shift string to left
-        quit[sizeof(quit) - 1] = c; // Insert current char on the right
-        if (memcmp(quit, "quit", sizeof(quit)) == 0) {
-            break;
-        }
-
-        printf("'%c' %02x (%d) (type quit to exit)\n",
-               isprint(c) ? c : '?',
-               (unsigned)c,
-               (int)c);
-        printf("\r"); // Go left edge manually, we are in raw mode
-        fflush(stdout);
-    }
-    disableRawMode(STDIN_FILENO);
 }
 
 /* This function is called when comlin() is called with the standard
@@ -1220,7 +1194,7 @@ comlinNoTTY(void)
 }
 
 char*
-comlin(const char* prompt)
+comlinReadLine(ComlinState* const state, const char* const prompt)
 {
     char buf[COMLIN_MAX_LINE];
 
@@ -1244,13 +1218,12 @@ comlin(const char* prompt)
         return strdup(buf);
     }
 
-    char* retval = comlinBlockingEdit(
-      STDIN_FILENO, STDOUT_FILENO, buf, COMLIN_MAX_LINE, prompt);
+    char* retval = comlinBlockingEdit(state);
     return retval;
 }
 
 void
-comlinFree(void* ptr)
+comlinFreeCommand(void* ptr)
 {
     if (ptr == comlinEditMore) {
         return; // Protect from API misuse.
@@ -1260,27 +1233,6 @@ comlinFree(void* ptr)
 
 /* ================================ History ================================= */
 
-/* Free the history, but does not reset it. Only used when we have to
- * exit() to avoid memory leaks are reported by valgrind & co. */
-static void
-freeHistory(void)
-{
-    if (history) {
-        for (int j = 0; j < history_len; ++j) {
-            free(history[j]);
-        }
-        free(history);
-    }
-}
-
-// At exit we'll try to fix the terminal to the initial conditions
-static void
-comlinAtExit(void)
-{
-    disableRawMode(STDIN_FILENO);
-    freeHistory();
-}
-
 /* Uses a fixed array of char pointers that are shifted (memmoved)
  * when the history max length is reached in order to remove the older
  * entry and make room for the new one, so it is not exactly suitable for huge
@@ -1288,23 +1240,24 @@ comlinAtExit(void)
  *
  * Using a circular buffer is smarter, but a bit more complex to handle. */
 int
-comlinHistoryAdd(const char* line)
+comlinHistoryAdd(ComlinState* const state, const char* line)
 {
-    if (history_max_len == 0) {
+    if (state->history_max_len == 0) {
         return 0;
     }
 
     // Initialization on first call
-    if (history == NULL) {
-        history = (char**)malloc(sizeof(char*) * history_max_len);
-        if (history == NULL) {
+    if (state->history == NULL) {
+        state->history = (char**)malloc(sizeof(char*) * state->history_max_len);
+        if (state->history == NULL) {
             return 0;
         }
-        memset(history, 0, (sizeof(char*) * history_max_len));
+        memset(state->history, 0, (sizeof(char*) * state->history_max_len));
     }
 
     // Don't add duplicated lines
-    if (history_len && !strcmp(history[history_len - 1], line)) {
+    if (state->history_len &&
+        !strcmp(state->history[state->history_len - 1], line)) {
         return 0;
     }
 
@@ -1314,24 +1267,26 @@ comlinHistoryAdd(const char* line)
     if (!linecopy) {
         return 0;
     }
-    if (history_len == history_max_len) {
-        free(history[0]);
-        memmove(history, history + 1, sizeof(char*) * (history_max_len - 1));
-        --history_len;
+    if (state->history_len == state->history_max_len) {
+        free(state->history[0]);
+        memmove(state->history,
+                state->history + 1,
+                sizeof(char*) * (state->history_max_len - 1));
+        --state->history_len;
     }
-    history[history_len] = linecopy;
-    ++history_len;
+    state->history[state->history_len] = linecopy;
+    ++state->history_len;
     return 1;
 }
 
 int
-comlinHistorySetMaxLen(int len)
+comlinHistorySetMaxLen(ComlinState* const state, int len)
 {
     if (len < 1) {
         return 0;
     }
-    if (history) {
-        int tocopy = history_len;
+    if (state->history) {
+        int tocopy = state->history_len;
 
         char** new_history = (char**)malloc(sizeof(char*) * len);
         if (new_history == NULL) {
@@ -1341,26 +1296,26 @@ comlinHistorySetMaxLen(int len)
         // If we can't copy everything, free the elements we'll not use
         if (len < tocopy) {
             for (int j = 0; j < tocopy - len; ++j) {
-                free(history[j]);
+                free(state->history[j]);
             }
             tocopy = len;
         }
         memset(new_history, 0, sizeof(char*) * len);
         memcpy(new_history,
-               history + (history_len - tocopy),
+               state->history + (state->history_len - tocopy),
                sizeof(char*) * tocopy);
-        free(history);
-        history = new_history;
+        free(state->history);
+        state->history = new_history;
     }
-    history_max_len = len;
-    if (history_len > history_max_len) {
-        history_len = history_max_len;
+    state->history_max_len = len;
+    if (state->history_len > state->history_max_len) {
+        state->history_len = state->history_max_len;
     }
     return 1;
 }
 
 int
-comlinHistorySave(const char* filename)
+comlinHistorySave(const ComlinState* const state, const char* filename)
 {
     mode_t old_umask = umask(S_IXUSR | S_IRWXG | S_IRWXO);
     FILE* fp = fopen(filename, "w");
@@ -1370,15 +1325,15 @@ comlinHistorySave(const char* filename)
     }
 
     chmod(filename, S_IRUSR | S_IWUSR);
-    for (int j = 0; j < history_len; ++j) {
-        fprintf(fp, "%s\n", history[j]);
+    for (int j = 0; j < state->history_len; ++j) {
+        fprintf(fp, "%s\n", state->history[j]);
     }
     fclose(fp);
     return 0;
 }
 
 int
-comlinHistoryLoad(const char* filename)
+comlinHistoryLoad(ComlinState* const state, const char* filename)
 {
     FILE* fp = fopen(filename, "r");
     char buf[COMLIN_MAX_LINE];
@@ -1395,8 +1350,25 @@ comlinHistoryLoad(const char* filename)
         if (p) {
             *p = '\0';
         }
-        comlinHistoryAdd(buf);
+        comlinHistoryAdd(state, buf);
     }
     fclose(fp);
     return 0;
+}
+
+void
+comlinFreeState(ComlinState* const state)
+{
+    // Free history
+    for (int j = 0; j < state->history_len; ++j) {
+        free(state->history[j]);
+    }
+    free(state->history);
+
+    // Disable raw mode if it was enabled by comlinNew
+    if (state->rawmode) {
+        disableRawMode(state);
+    }
+
+    free(state);
 }
