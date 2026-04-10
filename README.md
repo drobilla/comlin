@@ -24,7 +24,7 @@ The user interface is a minimal subset of readline's default key bindings:
   * Ctrl-n: Fetch the next command in the history.
 * Session
   * Tab: Auto-complete current input.
-  * Ctrl-l:	Clear the screen.
+  * Ctrl-l: Clear the screen.
 
 The implementation is a BSD-licensed C99 library with about a thousand lines of
 code in a single file, alongside a header that declares the public API.
