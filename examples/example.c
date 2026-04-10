@@ -16,7 +16,7 @@
 #include <strings.h>
 
 static void
-completion(const char* buf, comlinCompletions* lc)
+completion(const char* buf, ComlinCompletions* lc)
 {
     if (buf[0] == 'h') {
         comlinAddCompletion(lc, "hello");
