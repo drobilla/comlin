@@ -28,7 +28,7 @@ static char *hints(const char *buf, int *color, int *bold) {
 }
 
 int main(int argc, char **argv) {
-    char *line;
+    char *line = NULL;
     char *prgname = argv[0];
     int async = 0;
 
@@ -76,20 +76,19 @@ int main(int argc, char **argv) {
             /* Asynchronous mode using the multiplexing API: wait for
              * data on stdin, and simulate async data coming from some source
              * using the select(2) timeout. */
-            struct linenoiseState ls;
+            struct linenoiseState ls = {0};
             char buf[1024];
             linenoiseEditStart(&ls,-1,-1,buf,sizeof(buf),"hello> ");
             while(1) {
 		fd_set readfds;
 		struct timeval tv;
-		int retval;
 
 		FD_ZERO(&readfds);
 		FD_SET(ls.ifd, &readfds);
 		tv.tv_sec = 1; // 1 sec timeout
 		tv.tv_usec = 0;
 
-		retval = select(ls.ifd+1, &readfds, NULL, NULL, &tv);
+		int retval = select(ls.ifd+1, &readfds, NULL, NULL, &tv);
 		if (retval == -1) {
 		    perror("select()");
                     exit(1);
