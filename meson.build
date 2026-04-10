@@ -41,7 +41,6 @@ if cc.get_id() == 'clang'
       '-Wno-implicit-void-ptr-cast',
       '-Wno-missing-prototypes',
       '-Wno-padded',
-      '-Wno-reserved-macro-identifier',
       '-Wno-sign-conversion',
       '-Wno-switch-default',
       '-Wno-unsafe-buffer-usage',
