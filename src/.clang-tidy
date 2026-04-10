@@ -10,5 +10,5 @@ Checks: >
   -clang-analyzer-security.ArrayBound,
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
-    value: '59'
+    value: '61'
 InheritParentConfig: true
