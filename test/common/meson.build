@@ -35,6 +35,7 @@ common_test_names = [
   'Home2End2',
   'HomeEnd',
   'Left',
+  'LeftCp',
   'LeftRight',
   'Tab',
   'UpUp',
