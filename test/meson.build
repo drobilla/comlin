@@ -1,10 +1,29 @@
 # Copyright 2020-2026 David Robillard <d@drobilla.net>
 # SPDX-License-Identifier: BSD-2-Clause
 
+# Data-Driven Tests
+
+run_test_py = files('run_test.py')
+
+test_comlin_sources = files('test_comlin.c')
+test_comlin = executable(
+  'test_comlin',
+  test_comlin_sources,
+  c_args: c_suppressions,
+  dependencies: comlin_dep,
+  implicit_include_directories: false,
+  include_directories: include_dirs,
+)
+
+subdir('common')
+subdir('mask')
+subdir('single')
+
 # Lint
 
 if get_option('lint')
-  all_sources = c_headers + sources + example_sources
+  test_sources = test_comlin_sources
+  all_sources = c_headers + sources + example_sources + test_sources
 
   # Check code formatting
   clang_format = find_program('clang-format', required: false)

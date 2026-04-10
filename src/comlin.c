@@ -903,7 +903,6 @@ comlin_edit_start(ComlinState* const l, char const* const prompt)
     }
 
     // Reset line state
-    l->buf.data[0] = '\0';
     l->pos = 0U;
     l->oldpos = 0U;
     l->buf.length = 0U;
@@ -920,6 +919,7 @@ comlin_edit_start(ComlinState* const l, char const* const prompt)
     // Set edit state
     l->prompt = prompt;
     l->plen = strlen(prompt);
+    l->buf.data[0] = '\0';
     comlin_history_add(l, ""); // Latest history entry is the current line
 
     // Write prompt
