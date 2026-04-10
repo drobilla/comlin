@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 Checks: >
-  -*-macro-to-enum,
   -android-cloexec-fopen,
   -bugprone-easily-swappable-parameters,
   -bugprone-multi-level-implicit-pointer-conversion,
