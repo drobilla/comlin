@@ -61,8 +61,10 @@ struct ComlinStateImpl {
     size_t history_len;     ///< Number of history entries
     char** history;         ///< History entries
 
-    // Line editing state
+    // Terminal state
     struct termios cooked; ///< Terminal settings before raw mode
+
+    // Line editing state
     StringBuf buf;         ///< Editing line buffer
     char const* prompt;    ///< Prompt to display
     size_t plen;           ///< Prompt length
