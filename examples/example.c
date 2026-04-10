@@ -1,3 +1,7 @@
+// Copyright 2010-2023 Salvatore Sanfilippo <antirez@gmail.com>
+// Copyright 2010-2013 Pieter Noordhuis <pcnoordhuis@gmail.com>
+// SPDX-License-Identifier: BSD-2-Clause
+
 #include "linenoise/linenoise.h"
 
 #include <sys/select.h>

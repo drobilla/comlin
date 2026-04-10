@@ -139,3 +139,9 @@ if not meson.is_subproject()
   summary('Headers', get_option('prefix') / get_option('includedir'))
   summary('Libraries', get_option('prefix') / get_option('libdir'))
 endif
+
+#########
+# Tests #
+#########
+
+subdir('test')
