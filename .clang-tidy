@@ -3,7 +3,6 @@
 
 Checks: >
   *,
-  -*-braces-around-statements,
   -*-magic-numbers,
   -altera-*,
   -bugprone-easily-swappable-parameters,
