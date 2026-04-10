@@ -60,7 +60,7 @@ requested from the terminal (as if via a serial line):
   * Report the current cursor row `n` and column `m` as `ESC [ n ; m R`.
 
 If that method fails as well, the terminal is assumed to be 80 columns wide.
-If multi-line mode is enabled, the cursor may be moved vertically:
+For multi-line inputs, the cursor may be moved vertically:
 
 * `CUU` (Cursor Up): `ESC [ n A`
   * Move the cursor up `n` lines.

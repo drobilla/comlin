@@ -34,29 +34,22 @@ main(int argc, char** argv)
 
     char const* line = NULL;
     int async = 0;
-    int multiline = 0;
 
-    // Parse options, with --multiline we enable multi line editing
+    // Parse options
     while (argc > 1) {
         --argc;
         ++argv;
-        if (!strcmp(*argv, "--multiline")) {
-            multiline = 1;
-            print_string("Multi-line mode enabled.\n");
-        } else if (!strcmp(*argv, "--async")) {
+        if (!strcmp(*argv, "--async")) {
             async = 1;
         } else {
             print_string("Usage: ");
             print_string(prgname);
-            print_string(" [--multiline] [--keycodes] [--async]\n");
+            print_string(" [--keycodes] [--async]\n");
             return 1;
         }
     }
 
     ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"), 100U);
-    if (multiline) {
-        comlin_set_mode(state, COMLIN_MODE_MULTI_LINE);
-    }
 
     /* Set the completion callback. This will be called every time the
      * user uses the <tab> key. */
@@ -139,12 +132,9 @@ main(int argc, char** argv)
             comlin_history_add(state, line);           // Add to the history
             comlin_history_save(state, "history.txt"); // Save history to disk
         } else if (!strncmp(line, "/mask", 5)) {
-            comlin_set_mode(
-              state,
-              (ComlinModeFlags)COMLIN_MODE_MASKED |
-                (multiline ? (ComlinModeFlags)COMLIN_MODE_MULTI_LINE : 0U));
+            comlin_set_mode(state, (ComlinModeFlags)COMLIN_MODE_MASKED);
         } else if (!strncmp(line, "/unmask", 7)) {
-            comlin_set_mode(state, (multiline ? COMLIN_MODE_MULTI_LINE : 0U));
+            comlin_set_mode(state, 0U);
         } else if (line[0] == '/') {
             print_string("Unrecognized command: ");
             print_string(line);

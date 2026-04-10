@@ -52,7 +52,6 @@ struct ComlinStateImpl {
     unsigned short cols; ///< Number of columns in terminal
     bool maskmode;       ///< Show asterisks instead of input (for passwords)
     bool rawmode;        ///< Terminal is currently in raw mode
-    bool mlmode;         ///< Multi-line mode (default is single line)
     bool dumb;           ///< True if terminal is unsupported (no features)
 
     // History
@@ -72,9 +71,9 @@ struct ComlinStateImpl {
     bool in_completion;    ///< Currently doing a completion
     size_t completion_idx; ///< Index of next completion to propose
 
-    // Multi-line refresh state
+    // Line refresh state
     size_t oldpos;  ///< Previous refresh cursor position
-    size_t oldrows; ///< Rows used by last refreshed line (multi-line)
+    size_t oldrows; ///< Rows used by last refreshed line
 };
 
 static char const* const unsupported_term[] = {"dumb", "cons25", "emacs", NULL};
@@ -88,7 +87,7 @@ refresh_line_with_completion(ComlinState* ls,
                              unsigned flags);
 
 static ComlinStatus
-refresh_line_with_flags(ComlinState* l, unsigned flags);
+refresh_line(ComlinState* l, unsigned flags);
 
 typedef enum {
     CTRL_C = 3,   // ^C (ETX)
@@ -316,12 +315,12 @@ refresh_line_with_completion(ComlinState* const ls,
         StringBuf const saved_buf = ls->buf;
         ls->buf.data = lc->cvec[ls->completion_idx];
         ls->pos = ls->buf.length = strlen(ls->buf.data);
-        refresh_line_with_flags(ls, flags);
+        refresh_line(ls, flags);
         ls->buf = saved_buf;
         ls->pos = saved_pos;
         return COMLIN_SUCCESS;
     }
-    return refresh_line_with_flags(ls, flags);
+    return refresh_line(ls, flags);
 }
 
 /* Helper for when the user presses Tab, or another key during completion.
@@ -512,55 +511,9 @@ append_line_text(StringBuf* const buf,
 
 /* Refresh */
 
-// Clear and refresh the current line in single-line mode
+// Refresh the current line
 static ComlinStatus
-refresh_single_line(ComlinState const* const l, ComlinRefreshFlags const flags)
-{
-    // Chop the start if necessary so the cursor is on screen
-    char* buf = l->buf.data;
-    size_t len = l->buf.length;
-    size_t pos = l->pos;
-    if (l->plen + l->pos >= l->cols) {
-        size_t const offset = l->plen + l->pos + 1U - l->cols;
-        buf += offset;
-        len -= offset;
-        pos -= offset;
-    }
-
-    // Truncate display length to fit on the row
-    if (l->plen + len > l->cols) {
-        len = l->cols - l->plen;
-    }
-
-    // Start building an update for the whole row
-    StringBuf update = {NULL, 0U, 0U};
-
-    // Move cursor to left edge
-    buf_append(&update, "\r", 1);
-
-    if (flags & REFRESH_WRITE) {
-        // Write the prompt and the current buffer content
-        buf_append(&update, l->prompt, l->plen);
-        append_line_text(&update, buf, len, l->maskmode);
-    }
-
-    // Erase to right
-    buf_append(&update, VTESC "0K", 4);
-
-    if (flags & REFRESH_WRITE) {
-        // Move cursor to original position
-        buf_append(&update, "\r", 1);
-        buf_append_vtesc(&update, pos + l->plen, 'C');
-    }
-
-    ComlinStatus const st = write_string(l->ofd, update.data, update.length);
-    buf_free(&update);
-    return st;
-}
-
-// Refresh the current line in multi-line mode
-static ComlinStatus
-refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
+refresh_line(ComlinState* const l, ComlinRefreshFlags const flags)
 {
     size_t const rpos = (l->plen + l->oldpos + l->cols) / l->cols;
     size_t const old_rows = l->oldrows;
@@ -630,18 +583,10 @@ refresh_multi_line(ComlinState* const l, ComlinRefreshFlags const flags)
     return st;
 }
 
-// Optionally clear and/or refresh the current line
-static ComlinStatus
-refresh_line_with_flags(ComlinState* const l, ComlinRefreshFlags const flags)
-{
-    return l->mlmode ? refresh_multi_line(l, flags)
-                     : refresh_single_line(l, flags);
-}
-
 ComlinStatus
 comlin_hide(ComlinState* const l)
 {
-    return refresh_line_with_flags(l, REFRESH_CLEAN);
+    return refresh_line(l, REFRESH_CLEAN);
 }
 
 ComlinStatus
@@ -653,7 +598,7 @@ comlin_show(ComlinState* const l)
         return refresh_line_with_completion(l, &completions, REFRESH_WRITE);
     }
 
-    return refresh_line_with_flags(l, REFRESH_WRITE);
+    return refresh_line(l, REFRESH_WRITE);
 }
 
 /* Editing Operations */
@@ -667,7 +612,7 @@ edit_status(ComlinStatus const st)
 static ComlinStatus
 comlin_edit_refresh(ComlinState* const l)
 {
-    return edit_status(refresh_line_with_flags(l, REFRESH_ALL));
+    return edit_status(refresh_line(l, REFRESH_ALL));
 }
 
 // Insert a character at the current cursor position
@@ -682,8 +627,7 @@ comlin_edit_insert(ComlinState* const l, char const c)
         }
 
         ++l->pos;
-        if ((!l->mlmode || l->oldrows <= 1U) &&
-            l->plen + l->buf.length < l->cols) {
+        if (l->oldrows <= 1U && l->plen + l->buf.length < l->cols) {
             // Avoid a full update of the line in the trivial case
             char const d = (char)(l->maskmode ? '*' : c);
             return write(l->ofd, &d, 1) == 1 ? COMLIN_EDITING
@@ -932,9 +876,7 @@ static ComlinStatus
 comlin_edit_submit(ComlinState* const l)
 {
     comlin_edit_history_pop(l);
-    if (l->mlmode) {
-        comlin_edit_move_end(l);
-    }
+    comlin_edit_move_end(l);
     l->buf.data[l->buf.length] = '\0';
     return COMLIN_SUCCESS;
 }
@@ -976,7 +918,6 @@ comlin_free_state(ComlinState* const state)
 ComlinStatus
 comlin_set_mode(ComlinState* const state, ComlinModeFlags const flags)
 {
-    state->mlmode = flags & (ComlinModeFlags)COMLIN_MODE_MULTI_LINE;
     state->maskmode = flags & (ComlinModeFlags)COMLIN_MODE_MASKED;
     return COMLIN_SUCCESS;
 }

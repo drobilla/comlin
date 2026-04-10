@@ -73,16 +73,9 @@ foreach name : common_test_names
   out_file = files(name + '.out.ans')
 
   test(
-    name + '_single',
+    name,
     run_test_py,
     args: [in_file, out_file, test_comlin],
-    suite: ['io', 'common'],
-  )
-
-  test(
-    name + '_multi',
-    run_test_py,
-    args: [in_file, out_file, '--', test_comlin, '--multi'],
     suite: ['io', 'common'],
   )
 endforeach

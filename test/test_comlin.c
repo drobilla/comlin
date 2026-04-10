@@ -12,7 +12,6 @@ typedef struct {
     char const* save_path;
     bool dumb;
     bool mask;
-    bool multiline;
 } Options;
 
 static bool
@@ -43,7 +42,6 @@ print_usage(char const* const name, bool const error)
       "  --dumb          Force dumb terminal mode.\n"
       "  --help          Display this help and exit.\n"
       "  --mask          Use mask mode.\n"
-      "  --multi         Use multi-line mode.\n"
       "  --restore FILE  Load history from FILE before run.\n"
       "  --save FILE     Save history to FILE after run.\n";
 
@@ -65,7 +63,6 @@ static int
 run(int const ifd, int const ofd, Options const opts)
 {
     bool const mask = opts.mask;
-    bool const multiline = opts.multiline;
     char const* const restore_path = opts.restore_path;
     char const* const save_path = opts.save_path;
 
@@ -73,9 +70,7 @@ run(int const ifd, int const ofd, Options const opts)
     char const* const term = opts.dumb ? "dumb" : "vt100";
     ComlinState* const state = comlin_new_state(ifd, ofd, term, 32U);
     comlin_set_completion_callback(state, completion);
-    comlin_set_mode(state,
-                    (mask ? COMLIN_MODE_MASKED : 0U) |
-                      (multiline ? COMLIN_MODE_MULTI_LINE : 0U));
+    comlin_set_mode(state, (mask ? COMLIN_MODE_MASKED : 0U));
 
     // Load initial history
     if (restore_path) {
@@ -113,7 +108,7 @@ int
 main(int const argc, char const* const* const argv)
 {
     // Parse command line options
-    Options opts = {NULL, NULL, false, false, false};
+    Options opts = {NULL, NULL, false, false};
     int a = 1;
     for (; a < argc && argv[a][0] == '-'; ++a) {
         if (!strcmp(argv[a], "--help")) {
@@ -124,8 +119,6 @@ main(int const argc, char const* const* const argv)
             opts.dumb = true;
         } else if (!strcmp(argv[a], "--mask")) {
             opts.mask = true;
-        } else if (!strcmp(argv[a], "--multi")) {
-            opts.multiline = true;
         } else if (!strcmp(argv[a], "--restore")) {
             if (++a == argc) {
                 return missing_arg(argv[0], "--restore");

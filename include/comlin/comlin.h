@@ -65,7 +65,6 @@ typedef struct ComlinStateImpl ComlinState;
 /// A flag to configure the presentation of the command line
 typedef enum {
     COMLIN_MODE_MASKED = 1U << 0U,
-    COMLIN_MODE_MULTI_LINE = 1U << 1U,
 } ComlinModeFlag;
 
 /// Bitwise OR of ComlinModeFlag values

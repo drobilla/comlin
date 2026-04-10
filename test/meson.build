@@ -35,7 +35,6 @@ subdir('dumb')
 subdir('history')
 subdir('mask')
 subdir('multi')
-subdir('single')
 
 # Lint
 
