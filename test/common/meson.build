@@ -5,6 +5,7 @@ common_test_names = [
   'CbDelete',
   'Cd',
   'Ce',
+  'Ck',
   'Cn',
   'Ct',
   'LeftRight',
