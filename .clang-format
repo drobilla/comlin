@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 ---
-AlwaysBreakAfterDefinitionReturnType: None
-AlwaysBreakAfterReturnType: None
 BasedOnStyle: Mozilla
+BraceWrapping:
+  AfterFunction: true
 BreakBeforeBraces: Custom
 Cpp11BracedListStyle: true
 IndentCaseLabels: false
