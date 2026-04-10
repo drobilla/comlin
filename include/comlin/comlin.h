@@ -18,6 +18,7 @@
 #    endif
 #endif
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -236,7 +237,7 @@ comlinClearScreen(ComlinState* state);
 
 /// Set whether to use multi-line mode
 COMLIN_API void
-comlinSetMultiLine(ComlinState* state, int ml);
+comlinSetMultiLine(ComlinState* state, bool ml);
 
 /** Enable "mask mode".
  *
