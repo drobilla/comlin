@@ -5,7 +5,6 @@ Checks: >
   *,
   -*-magic-numbers,
   -altera-*,
-  -cert-err33-c,
   -llvmlibc-*,
   -misc-include-cleaner,
   -readability-identifier-length,

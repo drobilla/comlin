@@ -1,6 +1,8 @@
 # Copyright 2021-2026 David Robillard <d@drobilla.net>
 # SPDX-License-Identifier: BSD-2-Clause
 
+Checks: >
+  -cert-err33-c,
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
     value: '18'
