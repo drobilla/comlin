@@ -738,29 +738,28 @@ comlin_edit_history_step(ComlinState* const l, ComlinHistoryDirection const dir)
 {
     if (l->history_len > 1U) {
         // Update the current history entry before overwriting it with the next
-        free(l->history[l->history_len - 1U - l->history_index]);
-        l->history[l->history_len - 1U - l->history_index] =
-          strdup(l->buf.data);
+        size_t const current_index = l->history_len - 1U - l->history_index;
+        free(l->history[current_index]);
+        l->history[current_index] = strdup(l->buf.data);
 
-        // Show the new entry
+        // Update the history index
         if (dir == COMLIN_HISTORY_NEXT) {
             if (l->history_index == 0) {
                 return COMLIN_EDITING;
             }
             --l->history_index;
         } else {
+            if (l->history_index == l->history_len - 1U) {
+                return COMLIN_EDITING;
+            }
             ++l->history_index;
         }
-        if (l->history_index >= l->history_len) {
-            l->history_index = l->history_len - 1U;
-            return COMLIN_EDITING;
-        }
 
-        l->pos = strlen(l->history[l->history_len - 1U - l->history_index]);
+        // Show the new entry
+        size_t const new_index = l->history_len - 1U - l->history_index;
+        l->pos = strlen(l->history[new_index]);
         l->buf.length = 0U;
-        buf_append(
-          &l->buf, l->history[l->history_len - 1U - l->history_index], l->pos);
-        l->buf.data[l->pos] = '\0';
+        buf_append(&l->buf, l->history[new_index], l->pos);
         return comlin_edit_refresh(l);
     }
     return COMLIN_EDITING;
