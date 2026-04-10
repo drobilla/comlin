@@ -7,7 +7,7 @@ build_docs = doxygen.found()
 if build_docs
   # Configure Doxyfile for Doxygen
   config = configuration_data()
-  config.set('LINENOISE_SRCDIR', linenoise_src_root)
+  config.set('COMLIN_SRCDIR', comlin_src_root)
   config.set('DOX_OUTPUT', meson.current_build_dir())
   doxyfile = configure_file(
     configuration: config,

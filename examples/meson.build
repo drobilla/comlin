@@ -7,7 +7,7 @@ example = executable(
   'example',
   example_sources,
   c_args: c_suppressions,
-  dependencies: linenoise_dep,
+  dependencies: comlin_dep,
   implicit_include_directories: false,
   include_directories: include_dirs,
 )

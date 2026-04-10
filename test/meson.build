@@ -24,7 +24,7 @@ if get_option('lint')
       test(
         'REUSE',
         reuse,
-        args: ['--root', linenoise_src_root, 'lint'],
+        args: ['--root', comlin_src_root, 'lint'],
         suite: 'data',
       )
     endif
