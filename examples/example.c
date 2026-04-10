@@ -15,7 +15,7 @@
 #include <string.h>
 
 static void
-completion(const char* buf, ComlinCompletions* lc)
+completion(char const* buf, ComlinCompletions* lc)
 {
     if (buf[0] == 'h') {
         comlin_add_completion(lc, "hello");
@@ -24,7 +24,7 @@ completion(const char* buf, ComlinCompletions* lc)
 }
 
 static void
-print_string(const char* const str)
+print_string(char const* const str)
 {
     write(1, str, strlen(str));
 }
@@ -46,7 +46,7 @@ printKeyCodesLoop(void)
     while (1) {
         // Read an input character
         char c = '\0';
-        const ssize_t nread = read(STDIN_FILENO, &c, 1);
+        ssize_t const nread = read(STDIN_FILENO, &c, 1);
         if (nread <= 0) {
             continue;
         }
@@ -74,7 +74,7 @@ printKeyCodesLoop(void)
 int
 main(int argc, char** argv)
 {
-    const char* line = NULL;
+    char const* line = NULL;
     char* prgname = argv[0];
     int async = 0;
     int multiline = 0;
@@ -121,7 +121,7 @@ main(int argc, char** argv)
 
     while (1) {
         if (!async) {
-            const ComlinStatus st = comlin_read_line(state, "hello> ");
+            ComlinStatus const st = comlin_read_line(state, "hello> ");
             if (!st) {
                 line = comlin_text(state);
             } else {
@@ -149,7 +149,7 @@ main(int argc, char** argv)
                 }
 
                 if (retval) {
-                    const ComlinStatus st = comlin_edit_feed(state);
+                    ComlinStatus const st = comlin_edit_feed(state);
                     if (st == COMLIN_INTERRUPTED || st == COMLIN_END) {
                         line = NULL;
                         break;
