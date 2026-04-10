@@ -18,6 +18,7 @@ test_comlin = executable(
 subdir('common')
 subdir('mask')
 subdir('single')
+subdir('multi')
 
 # Lint
 
