@@ -25,7 +25,6 @@
 #include <unistd.h>
 
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -453,13 +452,41 @@ buf_append(StringBuf* const buf, char const* const s, size_t const len)
     return COMLIN_SUCCESS;
 }
 
+static size_t
+format_size(char* const buf, size_t x)
+{
+    size_t i = 0U;
+
+    // Write digits backwards
+    do {
+        buf[i++] = (char)('0' + (x % 10U));
+        x /= 10U;
+    } while (x);
+
+    // Terminate and reverse string
+    buf[i] = '\0';
+    if (i) {
+        for (size_t l = 0U, r = i - 1U; l < r; ++l, --r) {
+            char const t = buf[l];
+            buf[l] = buf[r];
+            buf[r] = t;
+        }
+    }
+
+    return i;
+}
+
 // Append an escape like `ESC [ n s` with a number and a suffix letter
 static void
 buf_append_vtesc(StringBuf* const buf, size_t const num, char const suffix)
 {
-    char seq[64] = {0};
-    int const len = snprintf(seq, sizeof(seq), VTESC "%zu%c", num, suffix);
-    buf_append(buf, seq, (size_t)len);
+    size_t end = 2U;
+    char seq[64] = {'\x1B', '[', 0};
+
+    end += format_size(seq + 2U, num);
+    seq[end++] = suffix;
+
+    buf_append(buf, seq, end);
 }
 
 static void

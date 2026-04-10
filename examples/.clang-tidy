@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 Checks: >
-  -cert-err33-c,
   -concurrency-mt-unsafe,
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
