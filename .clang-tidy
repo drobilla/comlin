@@ -18,7 +18,6 @@ Checks: >
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-init-variables,
   -llvm-header-guard,
-  -llvm-include-order,
   -llvmlibc-*,
   -misc-include-cleaner,
   -misc-use-internal-linkage,

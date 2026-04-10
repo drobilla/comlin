@@ -1,0 +1,6 @@
+[
+  { include: ["<bits/termios-c_cc.h>", "private", "<termios.h>", "public" ] },
+  { include: ["<bits/termios-c_cflag.h>", "private", "<termios.h>", "public" ] },
+  { include: ["<bits/termios-c_iflag.h>", "private", "<termios.h>", "public" ] },
+  { include: ["<bits/termios-c_oflag.h>", "private", "<termios.h>", "public" ] }
+]
