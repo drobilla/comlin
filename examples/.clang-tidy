@@ -5,5 +5,5 @@ Checks: >
   -concurrency-mt-unsafe,
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
-    value: '62'
+    value: '61'
 InheritParentConfig: true
