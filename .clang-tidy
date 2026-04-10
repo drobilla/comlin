@@ -5,7 +5,6 @@ Checks: >
   *,
   -*-braces-around-statements,
   -*-magic-numbers,
-  -*-named-parameter,
   -altera-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-unchecked-string-to-number-conversion,
