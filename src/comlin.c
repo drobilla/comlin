@@ -410,7 +410,7 @@ complete_line(ComlinState* const ls, char const keypressed)
         }
 
         // Show completion or original buffer
-        if (ls->in_completion && ls->completion_idx < lc.len) {
+        if (ls->in_completion) {
             refresh_line_with_completion(ls, &lc, REFRESH_ALL);
         } else {
             refresh_line(ls);
