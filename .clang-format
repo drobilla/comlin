@@ -1,0 +1,15 @@
+# Copyright 2020-2023 David Robillard <d@drobilla.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+---
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+BasedOnStyle: Mozilla
+BreakBeforeBraces: Custom
+Cpp11BracedListStyle: true
+IndentCaseLabels: false
+IndentPPDirectives: AfterHash
+IndentWidth: 4
+KeepEmptyLinesAtTheStartOfBlocks: false
+PointerAlignment: Right
+...

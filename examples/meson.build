@@ -1,9 +1,11 @@
 # Copyright 2020-2026 David Robillard <d@drobilla.net>
 # SPDX-License-Identifier: BSD-2-Clause
 
+example_sources = files('example.c')
+
 example = executable(
   'example',
-  files('example.c'),
+  example_sources,
   c_args: c_suppressions,
   dependencies: linenoise_dep,
   implicit_include_directories: false,
