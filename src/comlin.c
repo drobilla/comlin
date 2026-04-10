@@ -1141,6 +1141,8 @@ comlin_edit_read_escape(ComlinState* const l)
             return comlin_edit_move_home(l);
         case 'F': // End
             return comlin_edit_move_end(l);
+        default:
+            break;
         }
 
     } else if (seq[0] == 'O') { // ESC O sequence
@@ -1149,6 +1151,8 @@ comlin_edit_read_escape(ComlinState* const l)
             return comlin_edit_move_home(l);
         case 'F': // End
             return comlin_edit_move_end(l);
+        default:
+            break;
         }
     }
 

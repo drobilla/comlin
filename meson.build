@@ -36,7 +36,6 @@ if cc.get_id() == 'clang'
     c_suppressions += [
       '-Wno-declaration-after-statement',
       '-Wno-padded',
-      '-Wno-switch-default',
       '-Wno-unsafe-buffer-usage',
     ]
 
@@ -50,7 +49,6 @@ elif cc.get_id() == 'gcc'
     c_suppressions += [
       '-Wno-padded',
       '-Wno-suggest-attribute=pure',
-      '-Wno-switch-default',
     ]
   endif
 endif
