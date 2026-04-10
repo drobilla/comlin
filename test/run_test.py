@@ -7,9 +7,11 @@
 
 import argparse
 import difflib
+import os
 import shlex
 import subprocess
 import sys
+import tempfile
 
 
 def run(out_file, wrapper, command):
@@ -62,13 +64,40 @@ def main():
     )
 
     parser.add_argument("--wrapper", default="", help="executable wrapper")
+    parser.add_argument("--history", help="expected final history")
 
     parser.add_argument("out_file", help="expected output file")
-    parser.add_argument(
-        "command", nargs=argparse.REMAINDER, help="test command"
-    )
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="command")
 
-    return run(**vars(parser.parse_args(sys.argv[1:])))
+    args = parser.parse_args(sys.argv[1:])
+    if args.history is None:
+        return run(args.out_file, args.wrapper, args.command)
+
+    with tempfile.TemporaryDirectory() as temp:
+        name = os.path.basename(args.command[-1])
+        name = name[:name.index(".")]
+        actual_path = os.path.join(temp, name + ".hist.txt")
+        command = [args.command[0], "--save", actual_path] + args.command[1:]
+        if run(args.out_file, args.wrapper, command):
+            return 1
+
+        with open(args.history, "r", encoding="ascii") as expected:
+            with open(actual_path, "r", encoding="ascii") as actual:
+                same = True
+                for line in difflib.unified_diff(
+                    list(actual),
+                    list(expected),
+                    fromfile=actual_path,
+                    tofile=args.history,
+                ):
+                    sys.stderr.write(line)
+                    same = False
+
+                if not same:
+                    sys.stderr.write("error: Bad final history")
+                    return 1
+
+                return 0
 
 
 if __name__ == "__main__":

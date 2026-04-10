@@ -1,6 +1,21 @@
 # Copyright 2020-2026 David Robillard <d@drobilla.net>
 # SPDX-License-Identifier: BSD-2-Clause
 
+# Unit Tests
+
+test_history_sources = files('test_history.c')
+test(
+  'history',
+  executable(
+    'test_history',
+    test_history_sources,
+    c_args: c_suppressions,
+    dependencies: comlin_dep,
+    implicit_include_directories: false,
+    include_directories: include_dirs,
+  ),
+)
+
 # Data-Driven Tests
 
 run_test_py = files('run_test.py')
@@ -16,14 +31,15 @@ test_comlin = executable(
 )
 
 subdir('common')
+subdir('history')
 subdir('mask')
-subdir('single')
 subdir('multi')
+subdir('single')
 
 # Lint
 
 if get_option('lint')
-  test_sources = test_comlin_sources
+  test_sources = test_history_sources + test_comlin_sources
   all_sources = c_headers + sources + example_sources + test_sources
 
   # Check code formatting
