@@ -35,7 +35,6 @@ if cc.get_id() == 'clang'
   if warning_level == 'everything'
     c_suppressions += [
       '-Wno-declaration-after-statement',
-      '-Wno-format',
       '-Wno-padded',
       '-Wno-shorten-64-to-32',
       '-Wno-sign-conversion',
@@ -53,7 +52,6 @@ elif cc.get_id() == 'gcc'
     c_suppressions += [
       '-Wno-conversion',
       '-Wno-discarded-qualifiers',
-      '-Wno-format',
       '-Wno-padded',
       '-Wno-strict-overflow',
       '-Wno-suggest-attribute=pure',
