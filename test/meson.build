@@ -24,7 +24,7 @@ test_comlin_sources = files('test_comlin.c')
 test_comlin = executable(
   'test_comlin',
   test_comlin_sources,
-  c_args: c_suppressions,
+  c_args: platform_c_args + c_suppressions,
   dependencies: comlin_dep,
   implicit_include_directories: false,
   include_directories: include_dirs,

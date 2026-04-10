@@ -71,6 +71,9 @@ else
   soversion = meson.project_version().split('.')[0]
 endif
 
+# Enable POSIX features
+platform_c_args = ['-D_POSIX_C_SOURCE=200809L']
+
 ###########
 # Library #
 ###########
@@ -80,16 +83,17 @@ c_headers = files('include/comlin/comlin.h')
 sources = files('src/comlin.c')
 
 # Set appropriate arguments for building against the library type
-extra_c_args = ['-D_POSIX_C_SOURCE=200809L']
+extra_c_args = []
 if get_option('default_library') == 'static'
   extra_c_args = ['-DCOMLIN_STATIC']
 endif
 
 # Build shared and/or static library
+library_c_args = platform_c_args + extra_c_args + c_suppressions
 libcomlin = library(
   versioned_name,
   sources,
-  c_args: c_suppressions + extra_c_args + ['-DCOMLIN_INTERNAL'],
+  c_args: library_c_args + ['-DCOMLIN_INTERNAL'],
   gnu_symbol_visibility: 'hidden',
   implicit_include_directories: false,
   include_directories: include_dirs,
