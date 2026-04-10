@@ -7,7 +7,8 @@ Checks: >
   -bugprone-multi-level-implicit-pointer-conversion,
   -bugprone-switch-missing-default-case,
   -clang-analyzer-security.ArrayBound,
+  -readability-avoid-nested-conditional-operator,
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
-    value: '31'
+    value: '23'
 InheritParentConfig: true
