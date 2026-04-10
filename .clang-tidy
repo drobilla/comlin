@@ -16,7 +16,6 @@ Checks: >
   -cppcoreguidelines-init-variables,
   -llvmlibc-*,
   -misc-include-cleaner,
-  -misc-use-internal-linkage,
   -readability-identifier-length,
 FormatStyle: file
 HeaderFilterRegex: '.*'
