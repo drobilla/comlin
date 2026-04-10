@@ -82,12 +82,9 @@ run(int const ifd, int const ofd, Options const opts)
     char const* const term = opts.dumb ? "dumb" : "vt100";
     ComlinState* const state = comlin_new_state(ifd, ofd, term, 32U);
     comlin_set_completion_callback(state, completion);
-    if (mask) {
-        comlin_mask_mode_enable(state);
-    }
-    if (multiline) {
-        comlin_set_multi_line(state, 1);
-    }
+    comlin_set_mode(state,
+                    (mask ? COMLIN_MODE_MASKED : 0U) |
+                      (multiline ? COMLIN_MODE_MULTI_LINE : 0U));
 
     // Load initial history
     if (restore_path) {
