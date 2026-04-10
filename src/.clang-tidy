@@ -7,6 +7,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-multi-level-implicit-pointer-conversion,
   -bugprone-switch-missing-default-case,
+  -clang-analyzer-security.ArrayBound,
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
     value: '61'

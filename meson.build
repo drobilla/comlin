@@ -48,7 +48,6 @@ if cc.get_id() == 'clang'
 elif cc.get_id() == 'gcc'
   if warning_level == 'everything'
     c_suppressions += [
-      '-Wno-discarded-qualifiers',
       '-Wno-padded',
       '-Wno-suggest-attribute=pure',
       '-Wno-switch-default',
