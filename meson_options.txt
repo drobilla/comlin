@@ -2,6 +2,14 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 option(
+  'docs',
+  type: 'feature',
+  value: 'auto',
+  yield: true,
+  description: 'Build API reference documentation',
+)
+
+option(
   'lint',
   type: 'boolean',
   value: false,
