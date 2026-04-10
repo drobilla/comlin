@@ -46,13 +46,13 @@ struct ComlinStateImpl {
     ComlinCompletionCallback* completion_callback; ///< Get completions
 
     // Terminal session state
-    int ifd;       ///< Terminal stdin file descriptor
-    int ofd;       ///< Terminal stdout file descriptor
-    size_t cols;   ///< Number of columns in terminal
-    bool maskmode; ///< Show asterisks instead of input (for passwords)
-    bool rawmode;  ///< Terminal is currently in raw mode
-    bool mlmode;   ///< Multi-line mode (default is single line)
-    bool dumb;     ///< True if terminal is unsupported (no features)
+    int ifd;             ///< Terminal stdin file descriptor
+    int ofd;             ///< Terminal stdout file descriptor
+    unsigned short cols; ///< Number of columns in terminal
+    bool maskmode;       ///< Show asterisks instead of input (for passwords)
+    bool rawmode;        ///< Terminal is currently in raw mode
+    bool mlmode;         ///< Multi-line mode (default is single line)
+    bool dumb;           ///< True if terminal is unsupported (no features)
 
     // History
     size_t history_max_len; ///< Maximum number of history entries to keep
@@ -215,81 +215,58 @@ disable_raw_mode(ComlinState* const state)
 
 // Get the cursor position by communicating with the terminal
 static int
-get_cursor_position(int const ifd, int const ofd)
+get_cursor_column(int const ifd, int const ofd)
 {
-    char buf[32];
+    // Request cursor location and read response start (ESC [)
+    char c = '\0';
+    if (write_string(ofd, "\x1B[6n", 5) || read_char(ifd, &c) || c != ESC ||
+        read_char(ifd, &c) || c != '[') {
+        return -1;
+    }
+
+    // Skip the number of rows
+    while (c != ';') {
+        if (read_char(ifd, &c) || ((c != ';') && (c < '0' || c > '9'))) {
+            return -1;
+        }
+    }
+
+    // Parse the number of columns
     int cols = 0;
-    int rows = 0;
-    unsigned int i = 0;
-
-    // Report cursor location
-    if (write_string(ofd, "\x1B[6n", 4)) {
-        return -1;
-    }
-
-    // Read the response: ESC [ rows ; cols R
-    while (i + 1U < sizeof(buf)) {
-        if (read_char(ifd, buf + i)) {
-            break;
+    while (c != 'R') {
+        if (read_char(ifd, &c) || ((c != 'R') && (c < '0' || c > '9'))) {
+            return -1;
         }
-        if (buf[i] == 'R') {
-            break;
+
+        if (c != 'R') {
+            cols = (10 * cols) + (c - '0');
         }
-        ++i;
-    }
-    buf[i] = '\0';
-
-    // Parse it
-    if (buf[0] != ESC || buf[1] != '[') {
-        return -1;
-    }
-
-    if (sscanf(buf + 2, "%d;%d", &rows, &cols) != 2) {
-        return -1;
     }
 
     return cols;
 }
 
 // Get the number of columns in the terminal, or fall back to 80
-static int
-get_columns(int const ifd, int const ofd)
+static unsigned short
+get_columns(ComlinState* const state)
 {
+    int const ifd = state->ifd;
+    int const ofd = state->ofd;
     struct winsize ws = {24U, 80U, 640U, 480U};
 
-    if (isatty(ofd) && (ioctl(ofd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)) {
+    if (isatty(ofd) && (ioctl(ofd, TIOCGWINSZ, &ws) == -1 || ws.ws_col <= 0)) {
         // ioctl() failed. Try to query the terminal itself
-
-        // Get the initial position so we can restore it later
-        int start = get_cursor_position(ifd, ofd);
-        if (start == -1) {
-            goto failed;
+        ws.ws_col = 80U;
+        enable_raw_mode(state);
+        if (!write_string(ofd, "\x1B[999C", 6)) { // Go to the right margin
+            int const cols = get_cursor_column(ifd, ofd); // Get the column
+            write_string(ofd, "\r", 1); // Return to the left margin
+            ws.ws_col = cols > 0 ? (unsigned short)cols : 80U;
         }
-
-        // Go to right margin and get position
-        if (write_string(ofd, "\x1B[999C", 6)) {
-            goto failed;
-        }
-        int cols = get_cursor_position(ifd, ofd);
-        if (cols == -1) {
-            goto failed;
-        }
-
-        // Restore position
-        if (cols > start) {
-            char seq[32];
-            snprintf(seq, 32, "\x1B[%dD", cols - start);
-            if (write_string(ofd, seq, strlen(seq))) {
-                // Failed to restore position, oh well
-            }
-        }
-        return cols;
+        disable_raw_mode(state);
     }
 
     return ws.ws_col;
-
-failed:
-    return 80;
 }
 
 ComlinStatus
@@ -940,7 +917,7 @@ comlin_edit_start(ComlinState* const l, char const* const prompt)
     l->buf.length = 0U;
     l->oldrows = 0U;
     if (!l->cols) {
-        l->cols = (size_t)get_columns(l->ifd, l->ofd);
+        l->cols = get_columns(l);
         if (l->buf.size < l->cols) {
             free(l->buf.data);
             l->buf.data = (char*)calloc(1, l->cols);
