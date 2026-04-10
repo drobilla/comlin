@@ -34,11 +34,9 @@ warning_level = get_option('warning_level')
 if cc.get_id() == 'clang'
   if warning_level == 'everything'
     c_suppressions += [
-      '-Wno-c++-keyword',
       '-Wno-declaration-after-statement',
       '-Wno-format',
       '-Wno-implicit-int-conversion',
-      '-Wno-implicit-void-ptr-cast',
       '-Wno-padded',
       '-Wno-sign-conversion',
       '-Wno-switch-default',
@@ -59,7 +57,6 @@ if cc.get_id() == 'clang'
 elif cc.get_id() == 'gcc'
   if warning_level == 'everything'
     c_suppressions += [
-      '-Wno-c++-compat',
       '-Wno-conversion',
       '-Wno-discarded-qualifiers',
       '-Wno-format',
