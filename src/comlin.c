@@ -114,7 +114,7 @@ typedef unsigned ComlinRefreshFlags;
 
 static ComlinRefreshFlags const REFRESH_CLEAN = 1U << 0U;
 static ComlinRefreshFlags const REFRESH_WRITE = 1U << 1U;
-static ComlinRefreshFlags const REFRESH_ALL = REFRESH_CLEAN | REFRESH_WRITE;
+static ComlinRefreshFlags const REFRESH_ALL = 3U;
 
 static ComlinStatus
 refresh_line(ComlinState* l);
