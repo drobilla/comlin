@@ -34,8 +34,8 @@ int main(int argc, char **argv) {
 
     /* Parse options, with --multiline we enable multi line editing. */
     while(argc > 1) {
-        argc--;
-        argv++;
+        --argc;
+        ++argv;
         if (!strcmp(*argv,"--multiline")) {
             linenoiseSetMultiLine(1);
             printf("Multi-line mode enabled.\n");
