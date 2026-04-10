@@ -84,7 +84,7 @@ main(int const argc, char const* const* const argv)
     }
 
     // Allocate and configure state
-    ComlinState* const state = comlin_new_state(ifd, ofd, "vt100");
+    ComlinState* const state = comlin_new_state(ifd, ofd, "vt100", 64U);
     comlin_set_completion_callback(state, completion);
     if (mask) {
         comlin_mask_mode_enable(state);

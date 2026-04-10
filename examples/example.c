@@ -39,7 +39,7 @@ printKeyCodesLoop(void)
       "Press keys to see scan codes.  Type 'quit' at any time to exit.\n");
 
     // Start an edit just to set the terminal to raw mode
-    ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"));
+    ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"), 100U);
     comlin_edit_start(state, "> ");
 
     // Ignore it and process input keys ourselves
@@ -100,7 +100,7 @@ main(int argc, char** argv)
         }
     }
 
-    ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"));
+    ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"), 100U);
     if (multiline) {
         comlin_set_multi_line(state, 1);
     }
@@ -185,10 +185,6 @@ main(int argc, char** argv)
             print_string("'\n");
             comlin_history_add(state, line);           // Add to the history
             comlin_history_save(state, "history.txt"); // Save history to disk
-        } else if (!strncmp(line, "/historylen", 11)) {
-            // The "/historylen" command will change the history len
-            int const len = atoi(line + 11);
-            comlin_history_set_max_len(state, (size_t)len);
         } else if (!strncmp(line, "/mask", 5)) {
             comlin_mask_mode_enable(state);
         } else if (!strncmp(line, "/unmask", 7)) {
