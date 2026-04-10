@@ -16,9 +16,6 @@ extern "C" {
    @{
 */
 
-/// Sentinel return string for when the user is still editing the line
-extern char *linenoiseEditMore;
-
 /** The state during line editing.
  *
  * This is passed to functions implementing specific editing functionalities.
@@ -43,20 +40,13 @@ struct linenoiseState {
     int history_index;  ///< The history index we are currently editing
 };
 
-/** A sequence of applicable completions.
- *
- * This is passed to the completion callback, which can add completions to it
- * with #linenoiseAddCompletion.
- */
-typedef struct linenoiseCompletions {
-    size_t len;  ///< Number of elements in cvec
-    char **cvec; ///< Array of string pointers
-} linenoiseCompletions;
-
 /**
    @defgroup linenoise_non_blocking Non-blocking API
    @{
 */
+
+/// Sentinel return string for when the user is still editing the line
+extern char *linenoiseEditMore;
 
 /** Start a non-blocking command line read.
  *
@@ -143,6 +133,16 @@ void linenoiseFree(void *ptr);
    @defgroup linenoise_completion Completion
    @{
 */
+
+/** A sequence of applicable completions.
+ *
+ * This is passed to the completion callback, which can add completions to it
+ * with #linenoiseAddCompletion.
+ */
+typedef struct linenoiseCompletions {
+    size_t len;  ///< Number of elements in cvec
+    char **cvec; ///< Array of string pointers
+} linenoiseCompletions;
 
 /// Completion callback
 typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
