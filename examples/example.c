@@ -27,118 +27,107 @@ print_string(char const* const str)
     write(1, str, strlen(str));
 }
 
-int
-main(int argc, char** argv)
+static char const*
+read_line_sync(ComlinState* const state)
 {
-    char* const prgname = argv[0];
+    ComlinStatus const st = comlin_read_line(state, "example> ");
 
-    char const* line = NULL;
-    int async = 0;
+    return !st ? comlin_text(state) : NULL;
+}
 
+static char const*
+read_line_async(ComlinState* const state)
+{
+    comlin_edit_start(state, "example> ");
+
+    while (1) {
+        fd_set readfds;
+        struct timeval tv;
+
+        FD_ZERO(&readfds);
+        FD_SET(0, &readfds);
+        tv.tv_sec = 1; // 1 sec timeout
+        tv.tv_usec = 0;
+
+        int const retval = select(1, &readfds, NULL, NULL, &tv);
+        if (retval == -1) {
+            perror("select()");
+            break;
+        }
+
+        if (retval) {
+            ComlinStatus const st = comlin_edit_feed(state);
+            if (st == COMLIN_INTERRUPTED || st == COMLIN_END) {
+                break;
+            }
+
+            if (!st) {
+                comlin_edit_stop(state);
+                return comlin_text(state);
+            }
+        } else {
+            // Timeout occurred
+            static int counter = 0;
+            comlin_hide(state);
+            print_string("Async output ");
+            char decimal[24] = {0};
+            (void)snprintf(decimal, sizeof(decimal), "%d\n", counter++);
+            print_string(decimal);
+            comlin_show(state);
+        }
+    }
+
+    comlin_edit_stop(state);
+    return NULL;
+}
+
+static void
+process_line(ComlinState* const state, char const* line)
+{
+    if (line[0] != '\0' && line[0] != '/') {
+        print_string("echo: ");
+        print_string(line);
+        print_string("\n");
+        comlin_history_add(state, line);
+        comlin_history_save(state, "history.txt");
+    } else if (!strncmp(line, "/mask", 5)) {
+        comlin_set_mode(state, (ComlinModeFlags)COMLIN_MODE_MASKED);
+    } else if (!strncmp(line, "/unmask", 7)) {
+        comlin_set_mode(state, 0U);
+    } else if (line[0] == '/') {
+        print_string("Unrecognized command: ");
+        print_string(line);
+        print_string("\n");
+    }
+}
+
+int
+main(int const argc, char** const argv)
+{
     // Parse options
-    while (argc > 1) {
-        --argc;
-        ++argv;
-        if (!strcmp(*argv, "--async")) {
+    int async = 0;
+    for (int i = 1; i < argc; ++i) {
+        if (!strcmp(argv[i], "--async")) {
             async = 1;
         } else {
             print_string("Usage: ");
-            print_string(prgname);
+            print_string(argv[0]);
             print_string(" [--keycodes] [--async]\n");
             return 1;
         }
     }
 
+    // Set up comlin and load history
     ComlinState* const state = comlin_new_state(0, 1, getenv("TERM"), 100U);
-
-    /* Set the completion callback. This will be called every time the
-     * user uses the <tab> key. */
     comlin_set_completion_callback(state, completion);
-
-    /* Load history from file. The history file is just a plain text file
-     * where entries are separated by newlines. */
     comlin_history_load(state, "history.txt");
 
-    /* Now this is the main loop of the typical comlin-based application.
-     * The call to comlin() will block as long as the user types something
-     * and presses enter.
-     *
-     * The typed string is returned as a malloc() allocated string by
-     * comlin, so the user needs to free() it. */
-
-    while (1) {
-        if (!async) {
-            ComlinStatus const st = comlin_read_line(state, "hello> ");
-            if (!st) {
-                line = comlin_text(state);
-            } else {
-                line = NULL;
-                break;
-            }
-        } else {
-            /* Asynchronous mode using the multiplexing API: wait for
-             * data on stdin, and simulate async data coming from some source
-             * using the select(2) timeout. */
-            comlin_edit_start(state, "hello> ");
-            while (1) {
-                fd_set readfds;
-                struct timeval tv;
-
-                FD_ZERO(&readfds);
-                FD_SET(0, &readfds);
-                tv.tv_sec = 1; // 1 sec timeout
-                tv.tv_usec = 0;
-
-                int const retval = select(1, &readfds, NULL, NULL, &tv);
-                if (retval == -1) {
-                    perror("select()");
-                    return 1;
-                }
-
-                if (retval) {
-                    ComlinStatus const st = comlin_edit_feed(state);
-                    if (st == COMLIN_INTERRUPTED || st == COMLIN_END) {
-                        line = NULL;
-                        break;
-                    }
-
-                    if (!st) {
-                        line = comlin_text(state);
-                        break;
-                    }
-                } else {
-                    // Timeout occurred
-                    static int counter = 0;
-                    comlin_hide(state);
-                    print_string("Async output ");
-                    char decimal[24] = {0};
-                    (void)snprintf(decimal, sizeof(decimal), "%d\n", counter++);
-                    print_string(decimal);
-                    comlin_show(state);
-                }
-            }
-            comlin_edit_stop(state);
-            if (!line) { // Ctrl+D/C
-                comlin_free_state(state);
-                return 0;
-            }
-        }
-
-        // Do something with the string
-        if (line[0] != '\0' && line[0] != '/') {
-            print_string("echo: '");
-            print_string(line);
-            print_string("'\n");
-            comlin_history_add(state, line);           // Add to the history
-            comlin_history_save(state, "history.txt"); // Save history to disk
-        } else if (!strncmp(line, "/mask", 5)) {
-            comlin_set_mode(state, (ComlinModeFlags)COMLIN_MODE_MASKED);
-        } else if (!strncmp(line, "/unmask", 7)) {
-            comlin_set_mode(state, 0U);
-        } else if (line[0] == '/') {
-            print_string("Unrecognized command: ");
-            print_string(line);
-            print_string("\n");
+    // Read and process lines until interrupt or error
+    char const* line = "";
+    while (line) {
+        line = async ? read_line_async(state) : read_line_sync(state);
+        if (line) {
+            process_line(state, line);
         }
     }
 
