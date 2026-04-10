@@ -35,8 +35,8 @@ struct linenoiseState {
 };
 
 typedef struct linenoiseCompletions {
-  size_t len;
-  char **cvec;
+    size_t len;
+    char **cvec;
 } linenoiseCompletions;
 
 /* Non blocking API. */
