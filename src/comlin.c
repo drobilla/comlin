@@ -452,14 +452,14 @@ comlin_add_completion(ComlinCompletions* const lc, char const* const str)
     size_t const len = strlen(str);
 
     char* const copy = (char*)malloc(len + 1);
-    if (copy == NULL) {
+    if (!copy) {
         return;
     }
 
     memcpy(copy, str, len + 1);
     char** const cvec =
       (char**)realloc(lc->cvec, sizeof(char*) * (lc->len + 1));
-    if (cvec == NULL) {
+    if (!cvec) {
         free(copy);
         return;
     }
@@ -1144,9 +1144,9 @@ comlin_history_add(ComlinState* const state, char const* const line)
     }
 
     // Initialization on first call
-    if (state->history == NULL) {
+    if (!state->history) {
         state->history = (char**)malloc(sizeof(char*) * state->history_max_len);
-        if (state->history == NULL) {
+        if (!state->history) {
             return 0;
         }
         memset(state->history, 0, (sizeof(char*) * state->history_max_len));
@@ -1186,7 +1186,7 @@ comlin_history_set_max_len(ComlinState* const state, size_t const len)
         size_t tocopy = state->history_len;
 
         char** const new_history = (char**)malloc(sizeof(char*) * len);
-        if (new_history == NULL) {
+        if (!new_history) {
             return 0;
         }
 
@@ -1217,7 +1217,7 @@ comlin_history_save(ComlinState const* const state, char const* const filename)
     mode_t const old_umask = umask(S_IXUSR | S_IRWXG | S_IRWXO);
     FILE* const fp = fopen(filename, "w");
     umask(old_umask);
-    if (fp == NULL) {
+    if (!fp) {
         return -1;
     }
 
@@ -1235,7 +1235,7 @@ comlin_history_load(ComlinState* const state, char const* const filename)
     FILE* const fp = fopen(filename, "r");
     char buf[COMLIN_MAX_LINE];
 
-    if (fp == NULL) {
+    if (!fp) {
         return -1;
     }
 
