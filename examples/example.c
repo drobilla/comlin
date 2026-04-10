@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 static void
 completion(const char* buf, ComlinCompletions* lc)
@@ -22,17 +21,6 @@ completion(const char* buf, ComlinCompletions* lc)
         comlinAddCompletion(lc, "hello");
         comlinAddCompletion(lc, "hello there");
     }
-}
-
-static char*
-hints(const char* buf, int* color, int* bold)
-{
-    if (!strcasecmp(buf, "hello")) {
-        *color = 35;
-        *bold = 0;
-        return " World";
-    }
-    return NULL;
 }
 
 static void
@@ -122,7 +110,6 @@ main(int argc, char** argv)
     /* Set the completion callback. This will be called every time the
      * user uses the <tab> key. */
     comlinSetCompletionCallback(state, completion);
-    comlinSetHintsCallback(state, hints);
 
     /* Load history from file. The history file is just a plain text file
      * where entries are separated by newlines. */

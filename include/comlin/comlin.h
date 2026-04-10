@@ -175,23 +175,9 @@ typedef struct {
 /// Completion callback
 typedef void(ComlinCompletionCallback)(const char*, ComlinCompletions*);
 
-/// Prompt hint callback
-typedef char*(ComlinHintsCallback)(const char*, int* color, int* bold);
-
-/// Function to free a hint returned by a #ComlinHintsCallback
-typedef void(ComlinFreeHintsCallback)(void*);
-
 /// Register a callback function to be called for tab-completion
 COMLIN_API void
 comlinSetCompletionCallback(ComlinState* state, ComlinCompletionCallback* fn);
-
-/// Register a callback function to show hints to the right of the prompt
-COMLIN_API void
-comlinSetHintsCallback(ComlinState* state, ComlinHintsCallback* fn);
-
-/// Register a function to free the hints returned by the hints callback
-COMLIN_API void
-comlinSetFreeHintsCallback(ComlinState* state, ComlinFreeHintsCallback* fn);
 
 /** Add completion options for the current input string.
  *
