@@ -8,7 +8,6 @@ Checks: >
   -bugprone-unchecked-string-to-number-conversion,
   -cert-err33-c,
   -cert-err34-c,
-  -concurrency-mt-unsafe,
   -llvmlibc-*,
   -misc-include-cleaner,
   -readability-identifier-length,

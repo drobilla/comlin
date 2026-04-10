@@ -173,9 +173,8 @@ write_string(int const fd, char const* const buf, size_t const count)
 /* Return true if the terminal name is in the list of terminals we know are
  * not able to understand basic escape sequences. */
 static bool
-is_unsupported_term(void)
+is_unsupported_term(char const* const term)
 {
-    char const* const term = getenv("TERM");
     if (term) {
         for (unsigned i = 0U; unsupported_term[i]; ++i) {
             if (!strcasecmp(term, unsupported_term[i])) {
@@ -879,16 +878,16 @@ comlin_edit_delete_prev_word(ComlinState* const l)
 }
 
 ComlinState*
-comlin_new_state(int const stdin_fd, int const stdout_fd)
+comlin_new_state(int const in_fd, int const out_fd, char const* const term)
 {
     ComlinState* const l = (ComlinState*)calloc(1, sizeof(ComlinState));
     if (!l) {
         return NULL;
     }
 
-    l->ifd = stdin_fd;
-    l->ofd = stdout_fd;
-    l->dumb = is_unsupported_term();
+    l->ifd = in_fd;
+    l->ofd = out_fd;
+    l->dumb = is_unsupported_term(term);
     l->history_max_len = COMLIN_DEFAULT_HISTORY_MAX_LEN;
 
     return l;
