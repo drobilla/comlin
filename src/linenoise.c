@@ -1088,7 +1088,10 @@ static char *linenoiseBlockingEdit(int stdin_fd, int stdout_fd, char *buf, size_
         return NULL;
     }
 
-    linenoiseEditStart(&l,stdin_fd,stdout_fd,buf,buflen,prompt);
+    if (linenoiseEditStart(&l,stdin_fd,stdout_fd,buf,buflen,prompt) < 0) {
+		return NULL;
+	}
+
     char *res;
     while((res = linenoiseEditFeed(&l)) == linenoiseEditMore);
     linenoiseEditStop(&l);
