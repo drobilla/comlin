@@ -3,9 +3,6 @@
 
 #include "comlin/comlin.h"
 
-#include <unistd.h>
-
-#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,12 +31,6 @@ completion(char const* const line, ComlinCompletions* const lc)
         comlin_add_completion(lc, "second");
         comlin_add_completion(lc, "secondish");
     }
-}
-
-static void
-print_string(char const* const str)
-{
-    write(1, str, strlen(str));
 }
 
 static int
@@ -100,9 +91,8 @@ run(int const ifd, int const ofd, Options const opts)
         st = comlin_read_line(state, "> ");
         if (!st) {
             char const* const line = comlin_text(state);
-            print_string("echo: ");
-            print_string(line);
-            print_string("\n");
+            printf("echo: %s\n", line);
+            fflush(stdout);
             comlin_history_add(state, line);
         }
     }
@@ -153,20 +143,5 @@ main(int const argc, char const* const* const argv)
         }
     }
 
-    if (a < argc - 1) {
-        return print_usage(argv[0], true);
-    }
-
-    // Open input file if given, otherwise use stdin
-    int const ofd = STDOUT_FILENO;
-    int ifd = STDIN_FILENO;
-    if (a < argc) {
-        ifd = open(argv[a], O_RDONLY | O_CLOEXEC);
-        if (ifd < 0) {
-            fprintf(stderr, "Failed to open input file '%s'\n", argv[a]);
-            return 1;
-        }
-    }
-
-    return run(ifd, ofd, opts);
+    return (a < argc - 1) ? print_usage(argv[0], true) : run(0, 1, opts);
 }

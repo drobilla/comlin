@@ -3,5 +3,5 @@
 
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
-    value: '21'
+    value: '18'
 InheritParentConfig: true

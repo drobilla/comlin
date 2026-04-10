@@ -74,14 +74,14 @@ foreach name : common_test_names
   test(
     name + '_single',
     run_test_py,
-    args: [out_file, test_comlin, in_file],
+    args: [in_file, out_file, test_comlin],
     suite: ['io', 'common'],
   )
 
   test(
     name + '_multi',
     run_test_py,
-    args: [out_file, '--', test_comlin, '--multi', in_file],
+    args: [in_file, out_file, '--', test_comlin, '--multi'],
     suite: ['io', 'common'],
   )
 endforeach

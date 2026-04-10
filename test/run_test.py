@@ -14,19 +14,21 @@ import sys
 import tempfile
 
 
-def run(out_file, wrapper, command):
+def run(in_path, out_path, wrapper, command):
     """Run the test and compare the output with the expected output."""
 
     # Run command and capture actual output
-    with subprocess.Popen(
-        shlex.split(wrapper) + command,
-        stdout=subprocess.PIPE,
-    ) as proc:
-        actual = proc.stdout.read()
+    with open(in_path, "rb") as in_file:
+        with subprocess.Popen(
+            shlex.split(wrapper) + command,
+            stdin=in_file,
+            stdout=subprocess.PIPE,
+        ) as proc:
+            actual = proc.stdout.read()
 
     # Read expected output
-    with open(out_file, "rb") as out:
-        expected = out.read()
+    with open(out_path, "rb") as out_file:
+        expected = out_file.read()
 
     # Compare actual and expected output
     matcher = difflib.SequenceMatcher(None, actual, expected)
@@ -59,26 +61,27 @@ def main():
     """Parse command line arguments and run the test."""
 
     parser = argparse.ArgumentParser(
-        usage="%(prog)s [OPTIONS]... OUT_FILE COMMAND...",
+        usage="%(prog)s [OPTIONS]... IN_FILE OUT_FILE COMMAND...",
         description=__doc__,
     )
 
     parser.add_argument("--wrapper", default="", help="executable wrapper")
     parser.add_argument("--history", help="expected final history")
 
+    parser.add_argument("in_file", help="expected input file")
     parser.add_argument("out_file", help="expected output file")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="command")
 
     args = parser.parse_args(sys.argv[1:])
     if args.history is None:
-        return run(args.out_file, args.wrapper, args.command)
+        return run(args.in_file, args.out_file, args.wrapper, args.command)
 
     with tempfile.TemporaryDirectory() as temp:
         name = os.path.basename(args.command[-1])
-        name = name[:name.index(".")]
+        name = name[: name.index(".")]
         actual_path = os.path.join(temp, name + ".hist.txt")
         command = [args.command[0], "--save", actual_path] + args.command[1:]
-        if run(args.out_file, args.wrapper, command):
+        if run(args.in_file, args.out_file, args.wrapper, command):
             return 1
 
         with open(args.history, "r", encoding="ascii") as expected:
