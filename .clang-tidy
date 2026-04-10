@@ -1,0 +1,28 @@
+# Copyright 2021-2026 David Robillard <d@drobilla.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+Checks: >
+  *,
+  -*-braces-around-statements,
+  -*-magic-numbers,
+  -*-named-parameter,
+  -altera-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier,
+  -bugprone-unchecked-string-to-number-conversion,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  -cert-err33-c,
+  -cert-err34-c,
+  -concurrency-mt-unsafe,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-init-variables,
+  -llvm-header-guard,
+  -llvm-include-order,
+  -llvmlibc-*,
+  -misc-include-cleaner,
+  -misc-use-internal-linkage,
+  -readability-identifier-length,
+FormatStyle: file
+HeaderFilterRegex: '.*'
+WarningsAsErrors: '*'

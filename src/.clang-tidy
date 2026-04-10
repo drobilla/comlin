@@ -1,0 +1,20 @@
+# Copyright 2021-2026 David Robillard <d@drobilla.net>
+# SPDX-License-Identifier: BSD-2-Clause
+
+Checks: >
+  -*-else-after-return,
+  -*-macro-to-enum,
+  -*-narrowing-conversions,
+  -android-cloexec-fopen,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -bugprone-signed-char-misuse,
+  -bugprone-switch-missing-default-case,
+  -cert-str34-c,
+  -hicpp-signed-bitwise,
+  -readability-duplicate-include,
+  -readability-isolate-declaration,
+  -readability-redundant-declaration,
+CheckOptions:
+  - key:   readability-function-cognitive-complexity.Threshold
+    value: '61'
+InheritParentConfig: true
