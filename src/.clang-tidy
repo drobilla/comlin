@@ -12,7 +12,6 @@ Checks: >
   -cert-str34-c,
   -hicpp-signed-bitwise,
   -readability-isolate-declaration,
-  -readability-redundant-declaration,
 CheckOptions:
   - key:   readability-function-cognitive-complexity.Threshold
     value: '61'

@@ -67,7 +67,6 @@ elif cc.get_id() == 'gcc'
       '-Wno-missing-declarations',
       '-Wno-missing-prototypes',
       '-Wno-padded',
-      '-Wno-redundant-decls',
       '-Wno-strict-overflow',
       '-Wno-suggest-attribute=pure',
       '-Wno-switch-default',
