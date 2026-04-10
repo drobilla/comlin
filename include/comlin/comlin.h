@@ -6,6 +6,18 @@
 #ifndef COMLIN_COMLIN_H
 #define COMLIN_COMLIN_H
 
+#ifndef COMLIN_API
+#    if defined(_WIN32) && !defined(COMLIN_STATIC) && defined(COMLIN_INTERNAL)
+#        define COMLIN_API __declspec(dllexport)
+#    elif defined(_WIN32) && !defined(COMLIN_STATIC)
+#        define COMLIN_API __declspec(dllimport)
+#    elif defined(__GNUC__)
+#        define COMLIN_API __attribute__((visibility("default")))
+#    else
+#        define COMLIN_API
+#    endif
+#endif
+
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -47,7 +59,7 @@ struct comlinState {
 */
 
 /// Sentinel return string for when the user is still editing the line
-extern char *comlinEditMore;
+COMLIN_API extern char *comlinEditMore;
 
 /** Start a non-blocking command line read.
  *
@@ -71,7 +83,7 @@ extern char *comlinEditMore;
  *
  * @return 0 on success, or -1 if writing to standard output fails.
  */
-int
+COMLIN_API int
 comlinEditStart(struct comlinState *l,
                 int stdin_fd,
                 int stdout_fd,
@@ -94,7 +106,7 @@ comlinEditStart(struct comlinState *l,
  * user pressed Ctrl-C, `ENOENT` if the user pressed Ctrl-D, or some other
  * error number on an I/O error.
  */
-char *
+COMLIN_API char *
 comlinEditFeed(struct comlinState *l);
 
 /** Finish editing a line.
@@ -103,15 +115,15 @@ comlinEditFeed(struct comlinState *l);
  * command string.  At that point, the user input is in the buffer, and we can
  * restore the terminal to normal mode.
  */
-void
+COMLIN_API void
 comlinEditStop(struct comlinState *l);
 
 /// Hide the current line, when using the multiplexing API
-void
+COMLIN_API void
 comlinHide(struct comlinState *l);
 
 /// Show the current line, when using the multiplexing API
-void
+COMLIN_API void
 comlinShow(struct comlinState *l);
 
 /**
@@ -129,11 +141,11 @@ comlinShow(struct comlinState *l);
  * @return A newly allocated command string that must be freed with
  * #comlinFree.
  */
-char *
+COMLIN_API char *
 comlin(const char *prompt);
 
 /// Free a command string returned by comlin()
-void
+COMLIN_API void
 comlinFree(void *ptr);
 
 /**
@@ -162,15 +174,15 @@ typedef char *(comlinHintsCallback)(const char *, int *color, int *bold);
 typedef void(comlinFreeHintsCallback)(void *);
 
 /// Register a callback function to be called for tab-completion
-void
+COMLIN_API void
 comlinSetCompletionCallback(comlinCompletionCallback *fn);
 
 /// Register a callback function to show hints to the right of the prompt
-void
+COMLIN_API void
 comlinSetHintsCallback(comlinHintsCallback *fn);
 
 /// Register a function to free the hints returned by the hints callback
-void
+COMLIN_API void
 comlinSetFreeHintsCallback(comlinFreeHintsCallback *fn);
 
 /** Add completion options for the current input string.
@@ -178,7 +190,7 @@ comlinSetFreeHintsCallback(comlinFreeHintsCallback *fn);
  * This is used by completion callback to add completion options given the
  * input string when the user pressed `TAB`.
  */
-void
+COMLIN_API void
 comlinAddCompletion(comlinCompletions *lc, const char *str);
 
 /**
@@ -192,7 +204,7 @@ comlinAddCompletion(comlinCompletions *lc, const char *str);
  * The new entry will be added to the history in memory, which can later be
  * saved explicitly with #comlinHistorySave.
  */
-int
+COMLIN_API int
 comlinHistoryAdd(const char *line);
 
 /** Set the maximum length for the history.
@@ -201,21 +213,21 @@ comlinHistoryAdd(const char *line);
  * make sure to retain just the latest 'len' elements if the new history length
  * length is less than the number of items already in the history.
  */
-int
+COMLIN_API int
 comlinHistorySetMaxLen(int len);
 
 /** Save the history in the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
-int
+COMLIN_API int
 comlinHistorySave(const char *filename);
 
 /** Load the history from the specified file.
  *
  * @return 0 on success, otherwise -1.
  */
-int
+COMLIN_API int
 comlinHistoryLoad(const char *filename);
 
 /**
@@ -225,18 +237,18 @@ comlinHistoryLoad(const char *filename);
 */
 
 /// Clear the screen
-void
+COMLIN_API void
 comlinClearScreen(void);
 
 /// Set whether to use multi-line mode
-void
+COMLIN_API void
 comlinSetMultiLine(int ml);
 
 /** This special mode is used by comlin in order to print scan codes on
  * screen for debugging / development purposes.  It is implemented by the
  * comlin_example program using the --keycodes option.
  */
-void
+COMLIN_API void
 comlinPrintKeyCodes(void);
 
 /** Enable "mask mode".
@@ -245,7 +257,7 @@ comlinPrintKeyCodes(void);
  * This is useful for passwords and other secrets that shouldn't be *
  * displayed.
  */
-void
+COMLIN_API void
 comlinMaskModeEnable(void);
 
 /** Disable "mask mode".
@@ -253,7 +265,7 @@ comlinMaskModeEnable(void);
  * This will return to showing the user input after it was hidden with
  * comlinMaskModeEnable().
  */
-void
+COMLIN_API void
 comlinMaskModeDisable(void);
 
 /**

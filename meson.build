@@ -95,7 +95,7 @@ libcomlin = library(
   versioned_name,
   sources,
   c_args: c_suppressions + extra_c_args + ['-DCOMLIN_INTERNAL'],
-  # gnu_symbol_visibility: 'hidden',
+  gnu_symbol_visibility: 'hidden',
   implicit_include_directories: false,
   include_directories: include_dirs,
   install: true,
