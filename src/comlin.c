@@ -396,6 +396,20 @@ comlin_set_completion_callback(ComlinState* const state,
     state->completion_callback = fn;
 }
 
+static char*
+comlin_copy_string(char const* const str)
+{
+    size_t const len = strlen(str);
+    size_t const total_size = len + 1U;
+    char* const copy = (char*)malloc(total_size);
+
+    if (copy) {
+        memcpy(copy, str, total_size);
+    }
+
+    return copy;
+}
+
 ComlinStatus
 comlin_add_completion(ComlinCompletions* const lc, char const* const str)
 {
@@ -407,13 +421,11 @@ comlin_add_completion(ComlinCompletions* const lc, char const* const str)
 
     lc->cvec = cvec;
 
-    size_t const len = strlen(str);
-    char* const copy = (char*)malloc(len + 1U);
+    char* const copy = comlin_copy_string(str);
     if (!copy) {
         return COMLIN_NO_MEMORY;
     }
 
-    memcpy(copy, str, len + 1U);
     lc->cvec[lc->len++] = copy;
     return COMLIN_SUCCESS;
 }
@@ -740,7 +752,10 @@ comlin_edit_history_step(ComlinState* const l, ComlinHistoryDirection const dir)
         // Update the current history entry before overwriting it with the next
         size_t const current_index = l->history_len - 1U - l->history_index;
         free(l->history[current_index]);
-        l->history[current_index] = strdup(l->buf.data);
+        l->history[current_index] = comlin_copy_string(l->buf.data);
+        if (!l->history[current_index]) {
+            return COMLIN_NO_MEMORY;
+        }
 
         // Update the history index
         if (dir == COMLIN_HISTORY_NEXT) {
@@ -1173,7 +1188,7 @@ comlin_history_add(ComlinState* const state, char const* const line)
     }
 
     // Add an heap allocated copy of the line in the history
-    char* const linecopy = strdup(line);
+    char* const linecopy = comlin_copy_string(line);
     if (!linecopy) {
         return COMLIN_NO_MEMORY;
     }
