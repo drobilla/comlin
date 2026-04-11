@@ -5,8 +5,12 @@
 
 #include "comlin/comlin.h"
 
-#include <sys/select.h>
-#include <unistd.h>
+#ifdef _WIN32
+#    include <io.h>
+#else
+#    include <sys/select.h>
+#    include <unistd.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +38,8 @@ read_line_sync(ComlinState* const state)
 
     return !st ? comlin_text(state) : NULL;
 }
+
+#ifndef _WIN32
 
 static char const*
 read_line_async(ComlinState* const state)
@@ -81,6 +87,8 @@ read_line_async(ComlinState* const state)
     return NULL;
 }
 
+#endif
+
 static void
 process_line(ComlinState* const state, char const* line)
 {
@@ -125,7 +133,14 @@ main(int const argc, char** const argv)
     // Read and process lines until interrupt or error
     char const* line = "";
     while (line) {
-        line = async ? read_line_async(state) : read_line_sync(state);
+        if (async) {
+#ifndef _WIN32
+            line = read_line_async(state);
+#endif
+        } else {
+            line = read_line_sync(state);
+        }
+
         if (line) {
             process_line(state, line);
         }

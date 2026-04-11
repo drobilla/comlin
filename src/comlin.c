@@ -3,26 +3,22 @@
 // Copyright 2010-2013 Pieter Noordhuis <pcnoordhuis@gmail.com>
 // SPDX-License-Identifier: BSD-2-Clause
 
-/* Makes a number of assumptions that happen to be true on virtually any
- * remotely modern POSIX system.
- *
- * References:
- * - http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
- * - http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
- *
- * TODO:
- * - Add Win32 support.
- */
-
 #include "comlin/comlin.h"
+
+#ifdef _WIN32
+#    include <conio.h>
+#    include <io.h>
+#    include <windows.h>
+#else // POSIX
+#    include <sys/ioctl.h>
+#    include <sys/types.h>
+#    include <termios.h>
+#    include <unistd.h>
+#endif
 
 #include <errno.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <termios.h>
-#include <unistd.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -34,6 +30,19 @@
 
 // The two characters that begin a VT-100 escape sequence: `ESC [`
 #define VTESC "\x1B["
+
+#ifdef _WIN32
+
+typedef int ssize_t; // read() and write() return value
+
+typedef struct {
+    DWORD in_mode;  ///< Console input mode
+    DWORD out_mode; ///< Console output mode
+} ComlinTerminalState;
+
+#else // POSIX
+typedef struct termios ComlinTerminalState;
+#endif
 
 // A resizable buffer that contains a string
 typedef struct {
@@ -60,7 +69,7 @@ struct ComlinStateImpl {
     char** history;         ///< History entries
 
     // Terminal state
-    struct termios cooked; ///< Terminal settings before raw mode
+    ComlinTerminalState cooked; ///< Terminal settings before raw mode
 
     // Line editing state
     StringBuf buf;         ///< Editing line buffer
@@ -114,6 +123,13 @@ static ComlinStatus
 read_char(int const fd, char* const buf)
 {
     errno = 0;
+
+#ifdef _WIN32
+    if (_isatty(fd)) { // Special case: read from console
+        ((unsigned char*)buf)[0] = (unsigned char)_getch();
+        return COMLIN_SUCCESS;
+    }
+#endif
 
     ssize_t const r = read(fd, buf, 1);
 
@@ -170,7 +186,70 @@ is_unsupported_term(char const* const term)
     return false;
 }
 
-// Set terminal to raw input mode and preserve the original settings
+#ifdef _WIN32
+
+static HANDLE
+console_handle(int const fd)
+{
+    return _isatty(fd) ? (HANDLE)_get_osfhandle(fd) : (HANDLE)0;
+}
+
+static ComlinStatus
+enable_raw_mode(ComlinState* const state)
+{
+    _setmode(state->ifd, _O_BINARY);
+    _setmode(state->ofd, _O_BINARY);
+
+    HANDLE const ih = console_handle(state->ifd);
+    if (ih && (!GetConsoleMode(ih, &state->cooked.in_mode) ||
+               !SetConsoleMode(
+                 ih, state->cooked.in_mode | ENABLE_VIRTUAL_TERMINAL_INPUT))) {
+        return COMLIN_BAD_TERMINAL;
+    }
+
+    HANDLE const oh = console_handle(state->ofd);
+    if (oh && (!GetConsoleMode(oh, &state->cooked.out_mode) ||
+               !SetConsoleMode(oh,
+                               state->cooked.out_mode |
+                                 ENABLE_VIRTUAL_TERMINAL_PROCESSING |
+                                 DISABLE_NEWLINE_AUTO_RETURN))) {
+        return COMLIN_BAD_TERMINAL;
+    }
+
+    state->rawmode = true;
+    return COMLIN_SUCCESS;
+}
+
+static ComlinStatus
+disable_raw_mode(ComlinState* const state)
+{
+    if (state->rawmode) {
+        HANDLE const ih = console_handle(state->ifd);
+        HANDLE const oh = console_handle(state->ofd);
+        if ((ih && !SetConsoleMode(ih, state->cooked.in_mode)) ||
+            (oh && !SetConsoleMode(oh, state->cooked.out_mode))) {
+            return COMLIN_BAD_TERMINAL;
+        }
+
+        state->rawmode = false;
+    }
+
+    return COMLIN_SUCCESS;
+}
+
+// Get the number of columns in the terminal, or fall back to 80
+static unsigned short
+get_columns(ComlinState* const state)
+{
+    HANDLE const oh = console_handle(state->ofd);
+    CONSOLE_SCREEN_BUFFER_INFO b;
+    return (oh && GetConsoleScreenBufferInfo(oh, &b))
+             ? (unsigned short)(b.srWindow.Right - b.srWindow.Left)
+             : 80U;
+}
+
+#else // POSIX
+
 static ComlinStatus
 enable_raw_mode(ComlinState* const state)
 {
@@ -273,6 +352,8 @@ get_columns(ComlinState* const state)
 
     return ws.ws_col;
 }
+
+#endif
 
 ComlinStatus
 comlin_clear_screen(ComlinState* const state)
@@ -1022,6 +1103,42 @@ comlin_edit_control(ComlinState* const state, char const c)
     return handler ? handler(state) : COMLIN_EDITING;
 }
 
+#ifdef _WIN32
+
+// Read a Windows console special key
+ComlinStatus
+comlin_edit_read_win(ComlinState* const state)
+{
+    char c = 0;
+    ComlinStatus st = read_char(state->ifd, &c);
+    if (st) {
+        return st;
+    }
+
+    switch (c) {
+    case 71: // Home
+        return comlin_edit_move_home(state);
+    case 72: // Up
+        return comlin_edit_history_prev(state);
+    case 75: // Left
+        return comlin_edit_move_left(state);
+    case 77: // Right
+        return comlin_edit_move_right(state);
+    case 79: // End
+        return comlin_edit_move_end(state);
+    case 80: // Down
+        return comlin_edit_history_next(state);
+    case 83: // Delete
+        return comlin_edit_delete(state);
+    default:
+        break;
+    }
+
+    return COMLIN_SUCCESS;
+}
+
+#endif
+
 ComlinStatus
 comlin_edit_feed(ComlinState* const l)
 {
@@ -1031,6 +1148,12 @@ comlin_edit_feed(ComlinState* const l)
     if (st) {
         return st;
     }
+
+#ifdef _WIN32
+    if (!c || (unsigned char)c == 0xE0U) {
+        return comlin_edit_read_win(l);
+    }
+#endif
 
     if (l->dumb) {
         return comlin_edit_read_dumb(l, c); // Fallback for dumb terminals
@@ -1182,8 +1305,13 @@ comlin_history_add(ComlinState* const state, char const* const line)
 ComlinStatus
 comlin_history_save(ComlinState const* const state, char const* const filename)
 {
+#ifdef _WIN32
+    static int const mode = S_IREAD | S_IWRITE;
+#else
+    static mode_t const mode = S_IRUSR | S_IWUSR;
+#endif
+
     ComlinStatus st = COMLIN_SUCCESS;
-    mode_t const mode = S_IRUSR | S_IWUSR;
     int const flags = O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC;
     int const fd = open(filename, flags, mode);
     if (fd < 0) {
