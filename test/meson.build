@@ -16,6 +16,10 @@ test(
   ),
 )
 
+# Header Tests
+
+subdir('headers')
+
 # Data-Driven Tests
 
 run_test_py = files('run_test.py')

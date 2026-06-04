@@ -1,0 +1,23 @@
+# Copyright 2026 David Robillard <d@drobilla.net>
+# SPDX-License-Identifier: 0BSD OR ISC
+
+header_c_suppressions = []
+
+if get_option('warning_level') == 'everything'
+  if cc.get_id() == 'clang'
+    if not meson.is_cross_build()
+      header_c_suppressions += ['-Wno-poison-system-directories']
+    endif
+  endif
+endif
+
+test(
+  'headers',
+  executable(
+    'test_headers',
+    files('test_headers.c'),
+    c_args: header_c_suppressions,
+    dependencies: comlin_dep,
+    implicit_include_directories: false,
+  ),
+)
