@@ -1269,11 +1269,10 @@ comlin_history_add(ComlinState* const state, char const* const line)
 
     // Initialization on first call
     if (!state->history) {
-        state->history = (char**)malloc(sizeof(char*) * state->history_max_len);
+        state->history = (char**)calloc(state->history_max_len, sizeof(char*));
         if (!state->history) {
             return COMLIN_NO_MEMORY;
         }
-        memset(state->history, 0, (sizeof(char*) * state->history_max_len));
     }
 
     // Don't add duplicated lines
