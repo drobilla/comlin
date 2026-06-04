@@ -1051,7 +1051,10 @@ comlin_edit_read_dumb(ComlinState* const l, char const c)
         break;
     }
 
-    write(l->ofd, &c, 1U);
+    if (write(l->ofd, &c, 1U) != 1) {
+        return COMLIN_BAD_WRITE;
+    }
+
     buf_append(&l->buf, &c, 1U);
     return COMLIN_EDITING;
 }

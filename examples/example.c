@@ -28,7 +28,16 @@ completion(char const* buf, ComlinCompletions* const lc)
 static void
 print_string(char const* const str)
 {
-    write(1, str, strlen(str));
+    size_t const count = strlen(str);
+    size_t offset = 0U;
+    while (offset < count) {
+        ssize_t const r = write(1, str + offset, count - offset);
+        if (r < 0) {
+            return;
+        }
+
+        offset += (size_t)r;
+    }
 }
 
 static char const*
